@@ -18,7 +18,7 @@ EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
 TEST_SIZE = 0.25  # ratio of testing set
 
 BATCH_SIZE = 64
-EPOCHS = 20  # number of epochs
+EPOCHS = 1  # number of epochs
 
 # to convert labels to integers and vice-versa
 label2int = {"ham": 0, "spam": 1}
@@ -165,6 +165,8 @@ model.fit(X_train, y_train, validation_data=(X_test, y_test),
           batch_size=BATCH_SIZE, epochs=EPOCHS,
           callbacks=[tensorboard, model_checkpoint],
           verbose=1)
+
+
 
 # get the loss and metrics
 result = model.evaluate(X_test, y_test)
