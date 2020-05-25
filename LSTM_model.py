@@ -1,7 +1,7 @@
-from collections import defaultdict
 import matplotlib.pyplot as plt
 import nltk
 import numpy as np
+import scipy.special
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from keras.utils import to_categorical
@@ -14,11 +14,12 @@ SEQUENCE_LENGTH = 100                  # the length of all sequences (number of 
 EMBEDDING_SIZE = 100                   # Using 100-Dimensional GloVe embedding vectors
 TEST_SIZE = 0.25                       # ratio of testing set
 BATCH_SIZE = 1
-EPOCHS = 5                             # number of epochs
+EPOCHS = 7                             # number of epochs
 HIDDEN_SIZE = 50                       # Number of dimensions in the hidden state
 INPUT_SIZE = 1                         # Size of the vocabulary used (each word represented as one number)
 Z_SIZE = HIDDEN_SIZE + INPUT_SIZE      # Size of concatenated hidden + input vector
-OUTPUT_SIZE = 2
+OUTPUT_SIZE = 1
+ETA = 0.001                            # learning rate
 
 # to convert labels to integers and vice-versa
 label2int = {"ham": 0, "spam": 1}
@@ -40,8 +41,8 @@ def load_data():
 
 # load the data
 X, y = load_data()
-X = X[:40]
-y = y[:40]
+X = X[:300]
+y = y[:300]
 
 
 stop_words = set(stopwords.words('english'))
@@ -91,11 +92,13 @@ X = pad_sequences(X, maxlen=SEQUENCE_LENGTH)
 # [spam, ham, spam, ham, ham] will be converted to:
 # [1, 0, 1, 0, 1] and then to:
 # [[0, 1], [1, 0], [0, 1], [1, 0], [0, 1]]
-
+y2 = [label2int[label] for label in y]
+print(y2)
 y = [label2int[label] for label in y]
 y = to_categorical(y)
 
-print(y[0])
+y = y2      #temporarily
+
 
 # split and shuffle
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=7)
@@ -171,8 +174,14 @@ def init_orthogonal(param):
     return new_param
 
 
-
 def sigmoid(x, derivative=False):
+    """
+    Computes the element-wise sigmoid activation function for an array x.
+
+    Args:
+     `x`: the array where the function is applied
+     `derivative`: if set to True will return the derivative instead of the forward pass
+    """
     x_safe = x + 1e-12
     f = 1 / (1 + np.exp(-x_safe))
 
@@ -183,6 +192,13 @@ def sigmoid(x, derivative=False):
 
 
 def tanh(x, derivative=False):
+    """
+    Computes the element-wise tanh activation function for an array x.
+
+    Args:
+     `x`: the array where the function is applied
+     `derivative`: if set to True will return the derivative instead of the forward pass
+    """
     x_safe = x + 1e-12
     f = (np.exp(x_safe) - np.exp(-x_safe)) / (np.exp(x_safe) + np.exp(-x_safe))
 
@@ -193,6 +209,13 @@ def tanh(x, derivative=False):
 
 
 def softmax(x, derivative=False):
+    """
+    Computes the softmax for an array x.
+
+    Args:
+     `x`: the array where the function is applied
+     `derivative`: if set to True will return the derivative instead of the forward pass
+    """
     x_safe = x + 1e-12
     f = np.exp(x_safe) / np.sum(np.exp(x_safe))
 
@@ -264,24 +287,27 @@ def init_lstm(hidden_size, input_size, z_size):
     W_v = np.random.randn(input_size, hidden_size)
     b_v = np.zeros((input_size, 1))
 
+    # Fully connected layer Weights and Bias
+    W_fc = np.random.randn(100, OUTPUT_SIZE)  # first size should be hidden size, but errors
+    b_fc = np.zeros((1, OUTPUT_SIZE))
+
     # Initialize weights
     W_forget = init_orthogonal(W_forget)
     W_input = init_orthogonal(W_input)
     W_g = init_orthogonal(W_g)
     W_output = init_orthogonal(W_output)
     W_v = init_orthogonal(W_v)
+    W_fc = init_orthogonal(W_fc)
 
-    return W_forget, W_input, W_g, W_output, W_v, b_forget, b_input, b_g, b_output, b_v
+    return W_forget, W_input, W_g, W_output, W_v, W_fc, b_forget, b_input, b_g, b_output, b_v, b_fc
 
 
-# Fully connected layer Weights and Bias
-W_fc = np.zeros((100, OUTPUT_SIZE))    # first size should be hidden size, but errors
-b_fc = np.zeros((1, OUTPUT_SIZE))
 
 def model_output(lstm_output, W_fc, b_fc):
   '''Takes the LSTM output and transforms it to our desired
   output size using a final, fully connected layer'''
-  return np.dot(lstm_output,W_fc) + b_fc
+  model_output = np.dot(lstm_output,W_fc) + b_fc
+  return sigmoid(model_output)
 
 
 
@@ -311,7 +337,7 @@ def forward(inputs, h_prev, C_prev, p):
     assert h_prev.shape == (HIDDEN_SIZE, 1)
 
     # First we unpack our parameters
-    W_forget, W_input, W_g, W_output, W_v, b_forget, b_input, b_g, b_output, b_v = p
+    W_forget, W_input, W_g, W_output, W_v, W_fc, b_forget, b_input, b_g, b_output, b_v, b_fc = p
 
     # Save a list of computations for each of the components in the LSTM
     x_s, z_s, f_s, i_s, = [], [], [], []
@@ -337,7 +363,7 @@ def forward(inputs, h_prev, C_prev, p):
         f_s.append(f)
 
         # Calculate input gate
-        i = sigmoid(np.dot(W_input, z) + b_input)
+        i = np.float64(sigmoid(np.dot(W_input, z) + b_input))
         i_s.append(i)
 
         # Calculate candidate
@@ -361,7 +387,7 @@ def forward(inputs, h_prev, C_prev, p):
         v_s.append(v)
 
         # Calculate softmax
-        output = softmax(v)
+        output = softmax(v)     # why it sets all values as 1?
         output_s.append(output)
 
 
@@ -372,7 +398,7 @@ def forward(inputs, h_prev, C_prev, p):
 
 
 
-def backward(z, f, i, g, C, o, h, v, outputs, targets, p):
+def backward(z, f, i, g, C, o, h, v, outputs, fc_outputs, targets, p, error):
     """
     Arguments:
     z -- your concatenated input data  as a list of size m.
@@ -402,7 +428,7 @@ def backward(z, f, i, g, C, o, h, v, outputs, targets, p):
     """
 
     # Unpack parameters
-    W_forget, W_input, W_g, W_output, W_v, b_forget, b_input, b_g, b_output, b_v = p
+    W_forget, W_input, W_g, W_output, W_v, W_fc, b_forget, b_input, b_g, b_output, b_v, b_fc = p
 
     # Initialize gradients as zero
     W_forget_d = np.zeros_like(W_forget)
@@ -420,22 +446,37 @@ def backward(z, f, i, g, C, o, h, v, outputs, targets, p):
     W_v_d = np.zeros_like(W_v)
     b_v_d = np.zeros_like(b_v)
 
+    W_fc_d = np.zeros_like(W_fc)
+    b_fc_d = np.zeros_like(b_fc)
+
     # Set the next cell and hidden state equal to zero
     dh_next = np.zeros_like(h[0])
     dC_next = np.zeros_like(C[0])
 
-    # Track loss
-    loss = 0
+    #dfc = 0
+    #hiddiff = np.zeros((100, 1))
+    #dv = 0
+
+
+    dfc = np.dot(error, sigmoid(fc_outputs, derivative=True))       # internal error of fc layer
+    W_fc_d = ETA * np.concatenate(outputs, axis=0) * dfc            # gradient of the fc layer weights
+
+    #hiddiff = np.float64(np.multiply(dfc,W_fc))
+    #dv = np.float64(np.dot(hiddiff.T, sigmoid(np.concatenate(outputs, axis=0), derivative=True)))    # error layer before fc
+
+    #poprawka1 = ETA * input ' *delta1;
 
     for t in reversed(range(len(outputs))):
+
         # Compute the cross entropy
-        loss += -np.mean(np.log(outputs[t]) * targets)
+        #loss += -np.mean(np.log(outputs[t]) * targets)
+
         # Get the previous hidden cell state
         C_prev = C[t - 1]
 
         # Compute the derivative of the relation of the hidden-state to the output gate
         dv = np.copy(outputs[t])
-        #dv[np.argmax(targets[t])] -= 1
+        dv[np.argmax(targets[t])] -= 1
 
         # Update the gradient of the relation of the hidden-state to the output gate
         W_v_d += np.dot(dv, h[t].T)
@@ -482,12 +523,12 @@ def backward(z, f, i, g, C, o, h, v, outputs, targets, p):
         dC_prev = f[t] * dC
 
 
-    grads = W_forget_d, W_input_d, W_g_d, W_output_d, W_v_d, b_forget_d, b_input_d, b_g_d, b_output_d, b_v_d
+    grads = W_forget_d, W_input_d, W_g_d, W_output_d, W_v_d, W_fc_d, b_forget_d, b_input_d, b_g_d, b_output_d, b_v_d, b_fc_d
 
     # Clip gradients
     grads = clip_gradient_norm(grads)
 
-    return loss, grads
+    return grads
 
 
 
@@ -500,6 +541,7 @@ params = init_lstm(hidden_size=HIDDEN_SIZE, input_size=INPUT_SIZE, z_size=Z_SIZE
 # Initialize hidden state as zeros
 hidden_state = np.zeros((HIDDEN_SIZE, 1))
 
+error = 0
 # Track loss
 training_loss, validation_loss = [], []
 
@@ -513,6 +555,12 @@ for i in range(EPOCHS):
     # For each sentence in validation set, input is one sms
     for input, target in validation_set:
 
+        target2 = np.zeros((1, 99))
+        a = np.array(target)[np.newaxis]
+
+        long_target = np.column_stack((target2, a))
+        long_target = long_target.T
+
         # Initialize hidden state and cell state as zeros
         h = np.zeros((HIDDEN_SIZE, 1))
         c = np.zeros((HIDDEN_SIZE, 1))
@@ -523,15 +571,26 @@ for i in range(EPOCHS):
         # outputs are outputs for whole email (100d size)
         # fc_outputs are outputs multiplied by fully connected layer weights (2d size)
 
+        error = np.fabs(target - fc_outputs)
         # Backward pass
-        loss, _ = backward(z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, target, params)  # or fc_outputs ?
+        g = backward(z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, fc_outputs, long_target, params, error)  # or fc_outputs ?
 
+
+        #terr += 0.5 * np.sum((error).^ 2);
+
+        loss = error
         # Update loss
         epoch_validation_loss += loss
 
 
     # For each sms in training set
     for input, target in training_set:
+
+        target2 = np.zeros((1, 99))
+        a = np.array(target)[np.newaxis]
+
+        long_target = np.column_stack((target2, a))
+        long_target = long_target.T
 
         # Initialize hidden state and cell state as zeros
         h = np.zeros((HIDDEN_SIZE, 1))
@@ -540,8 +599,14 @@ for i in range(EPOCHS):
         # Forward pass
         z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, fc_outputs = forward(input, h, c, params)
 
+        error = np.fabs(target - fc_outputs)
+        #print("fc_outputs")
+        #print(fc_outputs)
+        loss = error
+
+
         # Backward pass
-        loss, grads = backward(z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, target, params)
+        grads = backward(z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, fc_outputs, long_target, params, error)
 
         # Update parameters
         params = update_parameters(params, grads, lr=1e-1)
@@ -558,25 +623,22 @@ for i in range(EPOCHS):
         print(f'Epoch {i}, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
 
+training_loss = np.concatenate(training_loss, axis=0)
+validation_loss = np.concatenate(validation_loss, axis=0)
 
 
+# For each sms in test set
+for input, target in test_set:
 
-# Get first sms in test set
-input, target = test_set[1]
+    # Initialize hidden state as zeros
+    h = np.zeros((HIDDEN_SIZE, 1))
+    c = np.zeros((HIDDEN_SIZE, 1))
 
-# Initialize hidden state as zeros
-h = np.zeros((HIDDEN_SIZE, 1))
-c = np.zeros((HIDDEN_SIZE, 1))
+    # Forward pass
+    z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, fc_outputs = forward(input, h, c, params)
 
-# Forward pass
-z_s, f_s, i_s, g_s, C_s, o_s, h_s, v_s, outputs, fc_outputs = forward(input, h, c, params)
+    print(f'Target {target}, Prediction: {fc_outputs}')
 
-
-print('\nTargets:')
-print(target)
-
-print('\nPredictions:')
-print(fc_outputs)
 
 
 # Plot training and validation loss
