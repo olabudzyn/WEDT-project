@@ -314,9 +314,7 @@ def model_output(lstm_output, W_fc, b_fc):
 def forward(inputs, h_prev, C_prev, p):
     """
     Arguments:
-    x -- your input data at timestep "t", numpy array of shape (n_x, m).
-    h_prev -- Hidden state at timestep "t-1", numpy array of shape (n_a, m)
-    C_prev -- Memory state at timestep "t-1", numpy array of shape (n_a, m)
+
     p -- python list containing:
                         W_forget -- Weight matrix of the forget gate, numpy array of shape (n_a, n_a + n_x)
                         b_forget -- Bias of the forget gate, numpy array of shape (n_a, 1)
@@ -336,10 +334,9 @@ def forward(inputs, h_prev, C_prev, p):
     assert C_prev.shape == (HIDDEN_SIZE, 1)
     assert h_prev.shape == (HIDDEN_SIZE, 1)
 
-    # First we unpack our parameters
+    # Unpacking parameters
     W_forget, W_input, W_g, W_output, W_v, W_fc, b_forget, b_input, b_g, b_output, b_v, b_fc = p
 
-    # Save a list of computations for each of the components in the LSTM
     x_s, z_s, f_s, i_s, = [], [], [], []
     g_s, C_s, o_s, h_s = [], [], [], []
     v_s, output_s, fc_output_s = [], [], []
@@ -358,27 +355,27 @@ def forward(inputs, h_prev, C_prev, p):
         z_s.append(z)
 
 
-        # Calculate forget gate
+        # Forget gate
         f = sigmoid(np.dot(W_forget, z) + b_forget)
         f_s.append(f)
 
-        # Calculate input gate
+        # Input gate
         i = np.float64(sigmoid(np.dot(W_input, z) + b_input))
         i_s.append(i)
 
-        # Calculate candidate
+        # Candidate
         g = tanh(np.dot(W_g, z) + b_g)
         g_s.append(g)
 
-        # Calculate memory state
+        # Cell state
         C_prev = f * C_prev + i * g
         C_s.append(C_prev)
 
-        # Calculate output gate
+        # Output gate
         o = sigmoid(np.dot(W_output, z) + b_output)
         o_s.append(o)
 
-        # Calculate hidden state
+        # Hidden state
         h_prev = o * tanh(C_prev)
         h_s.append(h_prev)
 
