@@ -19,7 +19,7 @@ TEST_SIZE = 0.20       # ratio of testing set
 OUTPUT_SIZE = 1
 #N_ITERS = 5
 #EPOCHS = int(N_ITERS / (len(X_train) / BATCH_SIZE))
-EPOCHS = 5
+EPOCHS = 3
 HIDDEN_DIM = 100
 N_LAYERS = 2
 LEARNING_RATE = 0.005
@@ -41,9 +41,10 @@ def load_data():
 
 
 # load the data
+num = 5574
 X, y = load_data()
-X = X[:5570]
-y = y[:5570]
+X = X[:num]
+y = y[:num]
 
 stop_words = set(stopwords.words('english'))
 
@@ -211,6 +212,34 @@ from nltk.data import load
 
 possibleTagList = load('help/tagsets/upenn_tagset.pickle').keys()
 
+def mapTag(tag):
+    if tag in ['VBN','VBZ','VBG','VBP','VBD','MD']:
+        return 'V'
+    elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
+        return 'N'
+    elif tag in ['JJS', 'JJR', 'JJ']:
+        return 'A'
+    elif tag in ['WP', 'WP$', 'WDT', 'WRB']:
+        return 'W'
+    elif tag in ['RB', 'RBR', 'RBS']:
+        return 'ADV'
+    elif tag in ['$']:
+        return 'DOLLAR'
+    elif tag in ['CD']:
+        return 'CD'
+    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$']:
+        return 'OTHER'
+    else:
+        return 'OTHER_OTHER'
+
+newTagDictionary = list(dict.fromkeys(map(mapTag, possibleTagList)))
+
+tagCounter = dict()
+for tag in newTagDictionary:
+    tagCounter[tag] = 0
+
+
+
 class SpamClassifier(nn.Module):
     def __init__(self, vocab_size, output_size, embedding_dim, hidden_dim, n_layers, drop_prob=0.5):
         super(SpamClassifier, self).__init__()
@@ -222,8 +251,9 @@ class SpamClassifier(nn.Module):
         self.embedding.weight = nn.Parameter(torch.tensor(embedding_matrix, dtype=torch.float32))
         self.embedding.weight.requires_grad = False
 
+        self.lstmCellOne = nn.LSTMCell(100, hidden_dim)
         self.lstmCells = dict()
-        for tag in possibleTagList:
+        for tag in newTagDictionary:
             newlstmCell = nn.LSTMCell(100, hidden_dim)
             self.lstmCells[tag] = newlstmCell
 
@@ -239,7 +269,7 @@ class SpamClassifier(nn.Module):
         # dense layer
         self.fc = nn.Linear(hidden_dim, output_size)
         # activation function
-        self.sigmoid = nn.Sigmoid() # TODO softmax
+        self.softmax = nn.Sigmoid()
 
     def forward(self, x, hidden):
         batch_size = x.size(0)
@@ -256,41 +286,32 @@ class SpamClassifier(nn.Module):
         listOfTags = []
         for i in range(0, len(listOfPOSTags)):
             tuple = listOfPOSTags[i]
-            tag = tuple[1]
+            tag = mapTag(tuple[1])
             listOfTags.append(tag)
 
         embeds = self.embedding(x)
-        temp = embeds
         for i in range(0, 100):
             tag = listOfTags[i]
-            input = embeds[0][i]
+            tagCounter[tag] += 1
+            input = embeds[0][i].view(1,100)
             hidden = self.lstmCells[tag](input, hidden)
-            a = "3"
+            # hidden = self.lstmCellOne(input, hidden)
 
         # lstm_out, hidden = self.lstm(embeds, hidden)
-        lstm_out = temp.contiguous().view(-1, self.hidden_dim)
+        lstm_out = hidden[0].contiguous().view(-1, self.hidden_dim)
 
         out = self.dropout(lstm_out)
         out = self.fc(out)
-        out = self.sigmoid(out)
+        out = self.softmax(out)
 
         out = out.view(batch_size, -1)
         out = out[:, -1]
         return out, hidden
 
-
-        for _ in range(random.randint(0, 3)):
-            value = token
-            wordFromtoken = costam (token)
-
-            h_relu = self.middle_linear(h_relu).clamp(min=0)
-        y_pred = self.output_linear(h_relu)
-        return y_pred
-
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
-        hidden = (weight.new(100, self.hidden_dim).zero_().to(device),
-                  weight.new(100, self.hidden_dim).zero_().to(device))
+        hidden = (weight.new(1, self.hidden_dim).zero_().to(device),
+                  weight.new(1, self.hidden_dim).zero_().to(device))
         return hidden
 
 
@@ -306,7 +327,7 @@ criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 counter = 0
-print_every = 1
+print_every = 1000
 clip = 5
 valid_loss_min = np.Inf
 
