@@ -47,9 +47,54 @@ y = y[:5570]
 
 stop_words = set(stopwords.words('english'))
 
+dataWithoutStopWords = []
+# filter sentences stop words
+for j in range(0, len(X)):
+    tokenized = sent_tokenize(X[j])
+    for i in tokenized:
+        wordsList = nltk.word_tokenize(i)
+        wordsList = [w for w in wordsList if not w in stop_words]
+        sentence = ' '.join(wordsList)
+        dataWithoutStopWords.append(sentence)
+
+# Text tokenization
+# vectorizing text, turning each text into sequence of integers
+# tokenizer1 = Tokenizer(lower=False)
+# tokenizer1.fit_on_texts(dataWithoutStopWords)
+# convert to sequence of integers
+
+# tokenizedSentences = tokenizer1.texts_to_sequences(dataWithoutStopWords)
+# X = tokenizer1.texts_to_sequences(dataWithoutStopWords)
+
 taggedWordsList = []
 
-for j in range(0, len(X)):
+for j in range(0, len(dataWithoutStopWords)):
+    tokenized = sent_tokenize(dataWithoutStopWords[j])
+    for i in tokenized:
+        # Word tokenizers is used to find the words
+        # and punctuation in a string
+        wordsList = nltk.word_tokenize(i)
+        #  Using a Tagger. Which is part-of-speech
+        # tagger or POS-tagger.
+        tagged = nltk.pos_tag(wordsList)
+        taggedWordsList.append(tagged)
+
+taggedWordsList2 = []
+
+for j in range(0, 10):
+    tokenized = sent_tokenize(X[j])
+    for i in tokenized:
+        # Word tokenizers is used to find the words
+        # and punctuation in a string
+        wordsList = nltk.word_tokenize(i)
+        #  Using a Tagger. Which is part-of-speech
+        # tagger or POS-tagger.
+        tagged = nltk.pos_tag(wordsList)
+        taggedWordsList2.append(tagged)
+
+taggedWordsList3 = []
+
+for j in range(0, 10):
     tokenized = sent_tokenize(X[j])
     for i in tokenized:
         # Word tokenizers is used to find the words
@@ -63,16 +108,15 @@ for j in range(0, len(X)):
         # tagger or POS-tagger.
         tagged = nltk.pos_tag(wordsList)
 
-        taggedWordsList.append(tagged)
+        taggedWordsList3.append(tagged)
 
 
 # Text tokenization
 # vectorizing text, turning each text into sequence of integers
-tokenizer = Tokenizer()
+tokenizer = Tokenizer(lower=False)
 tokenizer.fit_on_texts(X)
 # convert to sequence of integers
 X = tokenizer.texts_to_sequences(X)
-
 # convertomg to numpy arrays
 X = np.array(X)
 y = np.array(y)
@@ -83,8 +127,13 @@ X = pad_sequences(X, maxlen=SEQUENCE_LENGTH)
 y = [label2int[label] for label in y]
 y = np.asarray(y, dtype=np.float32)
 
+import json
+
 # split and shuffle
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=7)
+
+
+dictionary = json.loads(tokenizer.get_config()['index_word'])
 
 
 split_frac = 0.5 # 50% validation, 50% test
@@ -96,7 +145,8 @@ train_data = TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train))
 val_data = TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val))
 test_data = TensorDataset(torch.from_numpy(X_test), torch.from_numpy(y_test))
 
-BATCH_SIZE = int(len(X_val)/1)   # it must be a divisor X_train and X_val
+BATCH_SIZE = int(1)   # it must be a divisor X_train and X_val
+# BATCH_SIZE = int(len(X_val)/1)   # it must be a divisor X_train and X_val
 
 train_loader = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
 val_loader = DataLoader(val_data, shuffle=True, batch_size=BATCH_SIZE)
@@ -151,31 +201,74 @@ else:
     print(sample_x.shape, sample_y.shape)
 
 
+def indexToWord(index):
+    if index == 0:
+        return " "
+    word = dictionary[str(index)]
+    return word
+
+from nltk.data import load
+
+possibleTagList = load('help/tagsets/upenn_tagset.pickle').keys()
 
 class SpamClassifier(nn.Module):
     def __init__(self, vocab_size, output_size, embedding_dim, hidden_dim, n_layers, drop_prob=0.5):
         super(SpamClassifier, self).__init__()
         self.output_size = output_size
         self.n_layers = n_layers
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = 100
 
         self.embedding = nn.Embedding(vocab_size, EMBEDDING_SIZE)
         self.embedding.weight = nn.Parameter(torch.tensor(embedding_matrix, dtype=torch.float32))
         self.embedding.weight.requires_grad = False
 
+        self.lstmCells = dict()
+        for tag in possibleTagList:
+            newlstmCell = nn.LSTMCell(100, hidden_dim)
+            self.lstmCells[tag] = newlstmCell
+
         self.lstm = nn.LSTM(EMBEDDING_SIZE, hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
+
+        # self.lstmUnits = dict()
+        # for tag in possibleTagList:
+        #     newlstm = nn.LSTM(EMBEDDING_SIZE, hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
+        #     self.lstmUnits[tag] = newlstm
+
+
         self.dropout = nn.Dropout(0.2)
         # dense layer
         self.fc = nn.Linear(hidden_dim, output_size)
         # activation function
-        self.sigmoid = nn.Sigmoid()
+        self.sigmoid = nn.Sigmoid() # TODO softmax
 
     def forward(self, x, hidden):
         batch_size = x.size(0)
         x = x.long()
+
+        listOfWords = []
+        indexList = x.tolist()[0]
+        for i in range(0, len(indexList)):
+            index = indexList[i]
+            word = indexToWord(index)
+            listOfWords.append(word)
+
+        listOfPOSTags = nltk.pos_tag(listOfWords)
+        listOfTags = []
+        for i in range(0, len(listOfPOSTags)):
+            tuple = listOfPOSTags[i]
+            tag = tuple[1]
+            listOfTags.append(tag)
+
         embeds = self.embedding(x)
-        lstm_out, hidden = self.lstm(embeds, hidden)
-        lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim)
+        temp = embeds
+        for i in range(0, 100):
+            tag = listOfTags[i]
+            input = embeds[0][i]
+            hidden = self.lstmCells[tag](input, hidden)
+            a = "3"
+
+        # lstm_out, hidden = self.lstm(embeds, hidden)
+        lstm_out = temp.contiguous().view(-1, self.hidden_dim)
 
         out = self.dropout(lstm_out)
         out = self.fc(out)
@@ -185,10 +278,19 @@ class SpamClassifier(nn.Module):
         out = out[:, -1]
         return out, hidden
 
+
+        for _ in range(random.randint(0, 3)):
+            value = token
+            wordFromtoken = costam (token)
+
+            h_relu = self.middle_linear(h_relu).clamp(min=0)
+        y_pred = self.output_linear(h_relu)
+        return y_pred
+
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
-        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
-                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
+        hidden = (weight.new(100, self.hidden_dim).zero_().to(device),
+                  weight.new(100, self.hidden_dim).zero_().to(device))
         return hidden
 
 
