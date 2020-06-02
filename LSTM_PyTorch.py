@@ -204,7 +204,7 @@ else:
 
 def indexToWord(index):
     if index == 0:
-        return " "
+        return "."
     word = dictionary[str(index)]
     return word
 
@@ -217,12 +217,16 @@ def mapTag(tag):
         return 'V'
     elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
         return 'N'
-    elif tag in ['JJS', 'JJR', 'JJ', 'RB', 'RBR', 'RBS']:
+    elif tag in ['JJS', 'JJR', 'JJ']:
         return 'A'
-    # elif tag in ['CD']:
-    #     return 'CD'
-    # elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
-    #     return 'OTHER'
+    elif tag in ['RB', 'RBR', 'RBS']:
+        return 'ADV'
+    elif tag in ['.']:
+        return 'EMPTY'
+    elif tag in ['CD']:
+        return 'CD'
+    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
+        return 'OTHER'
     else:
         return 'OTHER_OTHER'
 
@@ -246,6 +250,14 @@ class SpamClassifier(nn.Module):
         self.embedding.weight.requires_grad = False
 
         self.lstmCellOne = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellOtherOther = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellEmpty = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellV = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellN= nn.LSTMCell(100, hidden_dim)
+        self.lstmCellA = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellAdv = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellOther = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellCd = nn.LSTMCell(100, hidden_dim)
         self.lstmCells = dict()
         for tag in newTagDictionary:
             newlstmCell = nn.LSTMCell(100, hidden_dim)
@@ -284,12 +296,28 @@ class SpamClassifier(nn.Module):
             listOfTags.append(tag)
 
         embeds = self.embedding(x)
+
         for i in range(0, 100):
             tag = listOfTags[i]
             tagCounter[tag] += 1
-            input = embeds[0][i].view(1,100)
-            hidden = self.lstmCells[tag](input, hidden)
-            # hidden = self.lstmCellOne(input, hidden)
+            input = embeds[0][i].view(1, 100)
+
+            if tag == 'EMPTY':
+                hidden = self.lstmCellEmpty(input, hidden)
+            elif tag == 'V':
+                hidden = self.lstmCellV(input, hidden)
+            elif tag == 'N':
+                hidden = self.lstmCellN(input, hidden)
+            elif tag == 'A':
+                hidden = self.lstmCellA(input, hidden)
+            elif tag == 'ADV':
+                hidden = self.lstmCellA(input, hidden)
+            elif tag == 'CD':
+                hidden = self.lstmCellCd(input, hidden)
+            elif tag == 'OTHER':
+                hidden = self.lstmCellOther(input, hidden)
+            else:
+                hidden = self.lstmCellOtherOther(input, hidden)
 
         # lstm_out, hidden = self.lstm(embeds, hidden)
         lstm_out = hidden[0].contiguous().view(-1, self.hidden_dim)
