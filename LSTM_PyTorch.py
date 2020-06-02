@@ -217,18 +217,12 @@ def mapTag(tag):
         return 'V'
     elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
         return 'N'
-    elif tag in ['JJS', 'JJR', 'JJ']:
+    elif tag in ['JJS', 'JJR', 'JJ', 'RB', 'RBR', 'RBS']:
         return 'A'
-    elif tag in ['WP', 'WP$', 'WDT', 'WRB']:
-        return 'W'
-    elif tag in ['RB', 'RBR', 'RBS']:
-        return 'ADV'
-    elif tag in ['$']:
-        return 'DOLLAR'
-    elif tag in ['CD']:
-        return 'CD'
-    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$']:
-        return 'OTHER'
+    # elif tag in ['CD']:
+    #     return 'CD'
+    # elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
+    #     return 'OTHER'
     else:
         return 'OTHER_OTHER'
 
