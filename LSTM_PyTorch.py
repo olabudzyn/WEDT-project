@@ -20,7 +20,7 @@ from IndexMapper import IndexMapper
 from UniversalTagger import UniversalTagger
 from UniversalTagger import UniversalTagger
 import json
-from wordcloud import WordCloud, STOPWORDS
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import plot_precision_recall_curve
 from sklearn.metrics import confusion_matrix
@@ -28,6 +28,7 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
 EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
@@ -35,7 +36,7 @@ TEST_SIZE = 0.20  # ratio of testing set
 OUTPUT_SIZE = 1
 # N_ITERS = 5
 # EPOCHS = int(N_ITERS / (len(X_train) / BATCH_SIZE))
-EPOCHS = 3
+EPOCHS = 1
 HIDDEN_DIM = 100
 N_LAYERS = 2
 LEARNING_RATE = 0.005
@@ -56,7 +57,7 @@ def load_data():
 
 
 # load the data
-num = 800
+num = 2000
 X, y = load_data()
 X = X[:num]
 y = y[:num]
@@ -80,16 +81,15 @@ y = np.asarray(y, dtype=np.float32)
 XSpamText = tokenizer.sequences_to_texts(X[y == 1])
 XHamText = tokenizer.sequences_to_texts(X[y == 0])
 
-
 indexes = ["Ham", "Spam"]
 values = [len(XHamText), len(XSpamText)]
 
 # Bar Chart
 plt.figure()
 barList = plt.bar(indexes, values, align="center", width=0.5, alpha=0.5)
-plt.title('Liczba wystąpień danej klasy',fontsize=20)
-plt.xlabel('Liczba wystąpień',fontsize=14)
-plt.ylabel('Klasa',fontsize=14)
+plt.title('Liczba wystąpień danej klasy', fontsize=20)
+plt.xlabel('Liczba wystąpień', fontsize=14)
+plt.ylabel('Klasa', fontsize=14)
 barList[0].set_color('darkorange')
 barList[1].set_color('darkblue')
 plt.show()
@@ -98,20 +98,18 @@ plt.show()
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=7)
 
 split_frac = 0.5  # 50% validation, 50% test
+
 # wordcloud for insult comments
-#plt.subplot(325)
-#subset=XSpamText
-#text=["1","2"]
-#wc= WordCloud(background_color="black",max_words=2000)
-#wc.generate(" ".join("f"))
-#plt.axis("off")
-#plt.title("Częste słowa w obraźliwych komentarzach", fontsize=20)
-#plt.imshow(wc.recolor(colormap= 'Paired_r' , random_state=244), alpha=0.98)
+plt.subplot(325)
+subset = XSpamText
+text = ["1", "2"]
+wc = WordCloud(background_color="black", max_words=2000)
+wc.generate(" ".join("f"))
+plt.axis("off")
+plt.title("Częste słowa w obraźliwych komentarzach", fontsize=20)
+plt.imshow(wc.recolor(colormap='Paired_r', random_state=244), alpha=0.98)
 
-
-
-
-split_frac = 0.5 # 50% validation, 50% test
+split_frac = 0.5  # 50% validation, 50% test
 split_id = int(split_frac * len(X_test))
 X_val, X_test = X_test[:split_id], X_test[split_id:]
 y_val, y_test = y_test[:split_id], y_test[split_id:]
@@ -165,7 +163,6 @@ else:
     sample_x, sample_y = data_iter.next()
 
     print(sample_x.shape, sample_y.shape)
-
 
 VOCAB_SIZE = len(tokenizer.word_index) + 1
 
@@ -310,7 +307,7 @@ for inputs, labels in test_loader:
     output, h = model(inputs, h)
     test_loss = criterion(output.squeeze(), labels.float())
     test_losses.append(test_loss.item())
-    pred = torch.round(output.squeeze())  #Rounds the output to 0/1
+    pred = torch.round(output.squeeze())  # Rounds the output to 0/1
     test_pred_vector.append(pred.item())
     correct_tensor = pred.eq(labels.float().view_as(pred))
     correct = np.squeeze(correct_tensor.cpu().numpy())
@@ -319,30 +316,28 @@ for inputs, labels in test_loader:
 print("Test loss: {:.3f}".format(np.mean(test_losses)))
 test_acc = num_correct / len(test_loader.dataset)
 print("Test accuracy: {:.3f}%".format(test_acc * 100))
-test_acc = num_correct/len(test_loader.dataset)
-print("Test accuracy: {:.3f}%".format(test_acc*100))
-#test_labels_vector = np.concatenate(test_labels_vector, axis=0)
+test_acc = num_correct / len(test_loader.dataset)
+print("Test accuracy: {:.3f}%".format(test_acc * 100))
+
+
 test_labels_vector = np.array(test_labels_vector)
-test_pred_vector = np.array(test_labels_vector)
+test_pred_vector = np.array(test_pred_vector)
 
 # Calculating confusion matrix
 confusionMatrix = confusion_matrix(test_labels_vector, test_pred_vector)
-recall = recall_score(test_labels_vector, test_pred_vector, average='micro')
-precision = precision_score(test_labels_vector, test_pred_vector, average='micro')
-f1 = f1_score(test_labels_vector, test_pred_vector, average='micro')
+recall = recall_score(test_labels_vector, test_pred_vector, average='macro')
+precision = precision_score(test_labels_vector, test_pred_vector, average='macro')
+f1 = f1_score(test_labels_vector, test_pred_vector, average='macro')
+accuracy = accuracy_score(test_labels_vector, test_pred_vector)
+recall1 = recall_score(test_pred_vector, test_labels_vector, average='macro')
 
-print('Average recall score: {0:0.2f}'.format(recall))
-print('Average precision score: {0:0.2f}'.format(precision))
-print('Average f1-recall score: {0:0.2f}'.format(f1))
+print(confusionMatrix)
+print('Average recall score: {0:0.4f}'.format(recall))
+print('Average precision score: {0:0.4f}'.format(precision))
+print('Average f1-recall score: {0:0.4f}'.format(f1))
 
-
-
-
-cross_result = cross_validate([test_pred_vector], X_test, test_labels_vector, cv=10, return_estimator = True)
+cross_result = cross_validate(test_pred_vector, X_test, test_labels_vector, cv=10, return_estimator=True)
 print(classification_report(cross_result, X_test, y_test))
-
-
-
 
 
 def get_predictions(text):
@@ -362,6 +357,7 @@ def get_predictions(text):
         return "ham"
     else:
         return "spam"
+
 
 # Plot training and validation loss
 val_losses_iter = np.arange(len(val_losses_vector))
