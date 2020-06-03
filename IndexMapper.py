@@ -7,7 +7,7 @@ class IndexMapper:
 
     def index_to_word(self, index):
         if index == 0:
-            return "."
+            return "-"
         return self.dictionary[str(index)]
 
     def indices_to_words(self, indices):

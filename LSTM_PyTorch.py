@@ -8,9 +8,13 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-from SpamClassifierLstmCellPos import SpamClassifierLstmCellPos
+from SpamClassifierLstmLayer import SpamClassifierLstmLayer
+from SpamClassifierLstmPosFull import SpamClassifierLstmPosFull
+from SpamClassifierLstmPosUniversal import SpamClassifierLstmPosUniversal
 from SpamClassifierSingleLstmCell import SpamClassifierSingleLstmCell
 from IndexMapper import IndexMapper
+from UniversalTagger import UniversalTagger
+from UniversalTagger import UniversalTagger
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
 EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
@@ -121,11 +125,22 @@ else:
 
 VOCAB_SIZE = len(tokenizer.word_index) + 1
 
-model_selector = 0
+model_selector = 3
 
 
 def get_model(selector):
     if selector == 0:
+        return SpamClassifierLstmLayer(
+            vocab_size=VOCAB_SIZE,
+            output_size=OUTPUT_SIZE,
+            n_layers=2,
+            embedding_matrix=embedding_matrix,
+            embedding_size=EMBEDDING_SIZE,
+            hidden_dim=HIDDEN_DIM,
+            device=device,
+            drop_prob=0.2
+        )
+    elif selector == 1:
         return SpamClassifierSingleLstmCell(
             vocab_size=VOCAB_SIZE,
             output_size=OUTPUT_SIZE,
@@ -135,8 +150,19 @@ def get_model(selector):
             device=device,
             drop_prob=0.2
         )
-    elif selector == 1:
-        return SpamClassifierLstmCellPos(
+    elif selector == 2:
+        return SpamClassifierLstmPosFull(
+            vocab_size=VOCAB_SIZE,
+            output_size=OUTPUT_SIZE,
+            embedding_matrix=embedding_matrix,
+            embedding_size=EMBEDDING_SIZE,
+            hidden_dim=HIDDEN_DIM,
+            device=device,
+            index_mapper=IndexMapper(tokenizer),
+            drop_prob=0.2
+        )
+    elif selector == 3:
+        return SpamClassifierLstmPosUniversal(
             vocab_size=VOCAB_SIZE,
             output_size=OUTPUT_SIZE,
             embedding_matrix=embedding_matrix,

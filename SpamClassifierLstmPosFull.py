@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
-from Tagger import FullTagger
+from FullTagger import FullTagger
 
 
-class SpamClassifierLstmCellPos(nn.Module):
+class SpamClassifierLstmPosFull(nn.Module):
     def __init__(self, vocab_size, output_size, embedding_matrix, embedding_size, hidden_dim, device, index_mapper, drop_prob):
-        super(SpamClassifierLstmCellPos, self).__init__()
+        super(SpamClassifierLstmPosFull, self).__init__()
         self.output_size = output_size
         self.hidden_dim = hidden_dim
         self.device = device
