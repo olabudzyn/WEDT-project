@@ -12,18 +12,21 @@ from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+from SpamClassifierLstmCellPos import SpamClassifierLstmCellPos
+from SpamClassifierSingleLstmCell import SpamClassifierSingleLstmCell
+from IndexMapper import IndexMapper
+from Tagger import FullTagger
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
-EMBEDDING_SIZE = 100   # Using 100-Dimensional GloVe embedding vectors
-TEST_SIZE = 0.20       # ratio of testing set
+EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
+TEST_SIZE = 0.20  # ratio of testing set
 OUTPUT_SIZE = 1
-#N_ITERS = 5
-#EPOCHS = int(N_ITERS / (len(X_train) / BATCH_SIZE))
+# N_ITERS = 5
+# EPOCHS = int(N_ITERS / (len(X_train) / BATCH_SIZE))
 EPOCHS = 3
 HIDDEN_DIM = 100
 N_LAYERS = 2
 LEARNING_RATE = 0.005
-
 
 # to convert labels to integers and vice-versa
 label2int = {"ham": 0, "spam": 1}
@@ -111,7 +114,6 @@ for j in range(0, 10):
 
         taggedWordsList3.append(tagged)
 
-
 # Text tokenization
 # vectorizing text, turning each text into sequence of integers
 tokenizer = Tokenizer(lower=False)
@@ -133,11 +135,9 @@ import json
 # split and shuffle
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=7)
 
-
 dictionary = json.loads(tokenizer.get_config()['index_word'])
 
-
-split_frac = 0.5 # 50% validation, 50% test
+split_frac = 0.5  # 50% validation, 50% test
 split_id = int(split_frac * len(X_test))
 X_val, X_test = X_test[:split_id], X_test[split_id:]
 y_val, y_test = y_test[:split_id], y_test[split_id:]
@@ -146,13 +146,12 @@ train_data = TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train))
 val_data = TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val))
 test_data = TensorDataset(torch.from_numpy(X_test), torch.from_numpy(y_test))
 
-BATCH_SIZE = int(1)   # it must be a divisor X_train and X_val
+BATCH_SIZE = int(1)  # it must be a divisor X_train and X_val
 # BATCH_SIZE = int(len(X_val)/1)   # it must be a divisor X_train and X_val
 
 train_loader = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
 val_loader = DataLoader(val_data, shuffle=True, batch_size=BATCH_SIZE)
 test_loader = DataLoader(test_data, shuffle=True, batch_size=BATCH_SIZE)
-
 
 
 def get_embedding_vectors(tokenizer, dim=100):
@@ -174,16 +173,13 @@ def get_embedding_vectors(tokenizer, dim=100):
 
     return embedding_matrix
 
+
 embedding_matrix = get_embedding_vectors(tokenizer)
-
-
 
 # initialize our ModelCheckpoint and TensorBoard callbacks
 # model checkpoint for saving best weights
 model_checkpoint = ModelCheckpoint("results/spam_classifier_{val_loss:.2f}", save_best_only=True,
                                    verbose=1)
-
-
 
 # torch.cuda.is_available() checks and returns a Boolean True if a GPU is available, else it'll return False
 is_cuda = torch.cuda.is_available()
@@ -208,12 +204,51 @@ def indexToWord(index):
     word = dictionary[str(index)]
     return word
 
+
 from nltk.data import load
 
 possibleTagList = load('help/tagsets/upenn_tagset.pickle').keys()
 
+
+# self.lstmCellvbn = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellvbz = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellvbg = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellvbp = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellvbd = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellvmd = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellnn = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellnnps = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellnnp = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellnns = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelljjs = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelljjr = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelljj = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellrb = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellrbr = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellrbs = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellEmpty = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellCd = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellIn = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellPdt = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellcc = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellex = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellpos = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellrp = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellfw = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelldt = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelluh = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellto = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellprp = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellprpdolar = nn.LSTMCell(100, hidden_dim)
+# self.lstmCelldolar = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellwp = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellwpdolar = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellwdt = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellwrb = nn.LSTMCell(100, hidden_dim)
+# self.lstmCellother = nn.LSTMCell(100, hidden_dim)
+
 def mapTag(tag):
-    if tag in ['VBN','VBZ','VBG','VBP','VBD','MD']:
+    if tag in ['VBN', 'VBZ', 'VBG', 'VBP', 'VBD', 'MD']:
         return 'V'
     elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
         return 'N'
@@ -225,17 +260,184 @@ def mapTag(tag):
         return 'EMPTY'
     elif tag in ['CD']:
         return 'CD'
-    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
+    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT',
+                 'WRB']:
         return 'OTHER'
     else:
         return 'OTHER_OTHER'
+
+
+# def mapTag(tag):
+#     if tag in ['VBN','VBZ','VBG','VBP','VBD','MD']:
+#         return 'V'
+#     elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
+#         return 'N'
+#     elif tag in ['JJS', 'JJR', 'JJ']:
+#         return 'A'
+#     elif tag in ['RB', 'RBR', 'RBS']:
+#         return 'ADV'
+#     elif tag in ['.']:
+#         return 'EMPTY'
+#     elif tag in ['CD']:
+#         return 'CD'
+#     elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
+#         return 'OTHER'
+#     else:
+#         return 'OTHER_OTHER'
+
+def mapTag(tag):
+    if tag == 'VBN':
+        return 'VBN'
+    elif tag == 'VBZ':
+        return 'VBZ'
+    elif tag == 'VBG':
+        return 'VBG'
+    elif tag == 'VBP':
+        return 'VBP'
+    elif tag == 'VBD':
+        return 'VBD'
+    elif tag == 'MD':
+        return 'MD'
+    elif tag == 'NN':
+        return 'NN'
+    elif tag == 'NNPS':
+        return 'NNPS'
+    elif tag == 'NNP':
+        return 'NNP'
+    elif tag == 'NNS':
+        return 'NNS'
+    elif tag == 'JJS':
+        return 'JJS'
+    elif tag == 'JJR':
+        return 'JJR'
+    elif tag == 'JJ':
+        return 'JJ'
+    elif tag == 'RB':
+        return 'RB'
+    elif tag == 'RBR':
+        return 'RB'
+    elif tag == 'RBS':
+        return 'RB'
+    elif tag == '.':
+        return 'EMPTY'
+    elif tag == 'CD':
+        return 'CD'
+    elif tag == 'IN':
+        return 'IN'
+    elif tag == 'PDT':
+        return 'PDT'
+    elif tag == 'CC':
+        return 'CC'
+    elif tag == 'EX':
+        return 'EX'
+    elif tag == 'POS':
+        return 'POS'
+    elif tag == 'RP':
+        return 'RP'
+    elif tag == 'FW':
+        return 'FW'
+    elif tag == 'DT':
+        return 'DT'
+    elif tag == 'UH':
+        return 'UH'
+    elif tag == 'TO':
+        return 'TO'
+    elif tag == 'PRP':
+        return 'PRP'
+    elif tag == 'PRP$':
+        return 'PRP$'
+    elif tag == '$':
+        return 'DOLAR'
+    elif tag == 'WP':
+        return 'WP'
+    elif tag == 'WP$':
+        return 'WP$'
+    elif tag == 'WDT':
+        return 'WDT'
+    elif tag == 'WRB':
+        return 'WRB'
+    else:
+        return 'OTHER'
+
+
+# if tag == 'VBN':
+#     hidden = self.lstmCellvbn(input, hidden)
+# elif tag == 'VBZ':
+#     hidden = self.lstmCellvbz(input, hidden)
+# elif tag == 'VBG':
+#     hidden = self.lstmCellvbn(input, hidden)
+# elif tag == 'VBP':
+#     hidden = self.lstmCellvbp(input, hidden)
+# elif tag == 'VBD':
+#     hidden = self.lstmCellvbd(input, hidden)
+# elif tag == 'MD':
+#     hidden = self.lstmCellmd(input, hidden)
+# elif tag == 'NN':
+#     hidden = self.lstmCellnn(input, hidden)
+# elif tag == 'NNPS':
+#     hidden = self.lstmCellnnps(input, hidden)
+# elif tag == 'NNP':
+#     hidden = self.lstmCellnnp(input, hidden)
+# elif tag == 'NNS':
+#     hidden = self.lstmCellnns(input, hidden)
+# elif tag == 'JJS':
+#     hidden = self.lstmCelljjs(input, hidden)
+# elif tag == 'JJR':
+#     hidden = self.lstmCelljjr(input, hidden)
+# elif tag == 'JJ':
+#     hidden = self.lstmCelljj(input, hidden)
+# elif tag == 'RB':
+#     hidden = self.lstmCellrb(input, hidden)
+# elif tag == 'RBR':
+#     hidden = self.lstmCellrbr(input, hidden)
+# elif tag == 'RBS':
+#     hidden = self.lstmCellrbs(input, hidden)
+# elif tag == '.':
+#     hidden = self.lstmCellempty(input, hidden)
+# elif tag == 'CD':
+#     hidden = self.lstmCellcd(input, hidden)
+# elif tag == 'IN':
+#     hidden = self.lstmCellin(input, hidden)
+# elif tag == 'PDT':
+#     hidden = self.lstmCellpdt(input, hidden)
+# elif tag == 'CC':
+#     hidden = self.lstmCellcc(input, hidden)
+# elif tag == 'EX':
+#     hidden = self.lstmCellex(input, hidden)
+# elif tag == 'POS':
+#     hidden = self.lstmCellpos(input, hidden)
+# elif tag == 'RP':
+#     hidden = self.lstmCellrp(input, hidden)
+# elif tag == 'FW':
+#     hidden = self.lstmCellfw(input, hidden)
+# elif tag == 'DT':
+#     hidden = self.lstmCelldt(input, hidden)
+# elif tag == 'UH':
+#     hidden = self.lstmCelluh(input, hidden)
+# elif tag == 'TO':
+#     hidden = self.lstmCellto(input, hidden)
+# elif tag == 'PRP':
+#     hidden = self.lstmCellprp(input, hidden)
+# elif tag == 'PRP$':
+#     hidden = self.lstmCellprpdolar(input, hidden)
+# elif tag == '$':
+#     hidden = self.lstmCelldolar(input, hidden)
+# elif tag == 'WP':
+#     hidden = self.lstmCellwp(input, hidden)
+# elif tag == 'WP$':
+#     hidden = self.lstmCellwpdolar(input, hidden)
+# elif tag == 'WDT':
+#     hidden = self.lstmCellwdt(input, hidden)
+# elif tag == 'WRB':
+#     hidden = self.lstmCellwrb(input, hidden)
+# else
+#     hidden = self.lstmCellother
 
 newTagDictionary = list(dict.fromkeys(map(mapTag, possibleTagList)))
 
 tagCounter = dict()
 for tag in newTagDictionary:
     tagCounter[tag] = 0
-
 
 
 class SpamClassifier(nn.Module):
@@ -250,14 +452,42 @@ class SpamClassifier(nn.Module):
         self.embedding.weight.requires_grad = False
 
         self.lstmCellOne = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellOtherOther = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellEmpty = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellV = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellN= nn.LSTMCell(100, hidden_dim)
-        self.lstmCellA = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellAdv = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellOther = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellCd = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellvbn = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellvbz = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellvbg = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellvbp = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellvbd = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellmd = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellnn = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellnnps = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellnnp = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellnns = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelljjs = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelljjr = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelljj = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellrb = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellrbr = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellrbs = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellEMPTY = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellcd = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellin = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellpdt = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellcc = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellex = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellpos = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellrp = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellfw = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelldt = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelluh = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellto = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellprp = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellprpdolar = nn.LSTMCell(100, hidden_dim)
+        self.lstmCelldolar = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellwp = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellwpdolar = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellwdt = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellwrb = nn.LSTMCell(100, hidden_dim)
+        self.lstmCellother = nn.LSTMCell(100, hidden_dim)
         self.lstmCells = dict()
         for tag in newTagDictionary:
             newlstmCell = nn.LSTMCell(100, hidden_dim)
@@ -269,7 +499,6 @@ class SpamClassifier(nn.Module):
         # for tag in possibleTagList:
         #     newlstm = nn.LSTM(EMBEDDING_SIZE, hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
         #     self.lstmUnits[tag] = newlstm
-
 
         self.dropout = nn.Dropout(0.2)
         # dense layer
@@ -302,24 +531,80 @@ class SpamClassifier(nn.Module):
             tagCounter[tag] += 1
             input = embeds[0][i].view(1, 100)
 
-            if tag == 'EMPTY':
-                hidden = self.lstmCellEmpty(input, hidden)
-            elif tag == 'V':
-                hidden = self.lstmCellV(input, hidden)
-            elif tag == 'N':
-                hidden = self.lstmCellN(input, hidden)
-            elif tag == 'A':
-                hidden = self.lstmCellA(input, hidden)
-            elif tag == 'ADV':
-                hidden = self.lstmCellA(input, hidden)
+            if tag == 'VBN':
+                hidden = self.lstmCellvbn(input, hidden)
+            elif tag == 'VBZ':
+                hidden = self.lstmCellvbz(input, hidden)
+            elif tag == 'VBG':
+                hidden = self.lstmCellvbn(input, hidden)
+            elif tag == 'VBP':
+                hidden = self.lstmCellvbp(input, hidden)
+            elif tag == 'VBD':
+                hidden = self.lstmCellvbd(input, hidden)
+            elif tag == 'MD':
+                hidden = self.lstmCellmd(input, hidden)
+            elif tag == 'NN':
+                hidden = self.lstmCellnn(input, hidden)
+            elif tag == 'NNPS':
+                hidden = self.lstmCellnnps(input, hidden)
+            elif tag == 'NNP':
+                hidden = self.lstmCellnnp(input, hidden)
+            elif tag == 'NNS':
+                hidden = self.lstmCellnns(input, hidden)
+            elif tag == 'JJS':
+                hidden = self.lstmCelljjs(input, hidden)
+            elif tag == 'JJR':
+                hidden = self.lstmCelljjr(input, hidden)
+            elif tag == 'JJ':
+                hidden = self.lstmCelljj(input, hidden)
+            elif tag == 'RB':
+                hidden = self.lstmCellrb(input, hidden)
+            elif tag == 'RBR':
+                hidden = self.lstmCellrbr(input, hidden)
+            elif tag == 'RBS':
+                hidden = self.lstmCellrbs(input, hidden)
+            elif tag == '.':
+                hidden = self.lstmCellEMPTY(input, hidden)
             elif tag == 'CD':
-                hidden = self.lstmCellCd(input, hidden)
-            elif tag == 'OTHER':
-                hidden = self.lstmCellOther(input, hidden)
+                hidden = self.lstmCellcd(input, hidden)
+            elif tag == 'IN':
+                hidden = self.lstmCellin(input, hidden)
+            elif tag == 'PDT':
+                hidden = self.lstmCellpdt(input, hidden)
+            elif tag == 'CC':
+                hidden = self.lstmCellcc(input, hidden)
+            elif tag == 'EX':
+                hidden = self.lstmCellex(input, hidden)
+            elif tag == 'POS':
+                hidden = self.lstmCellpos(input, hidden)
+            elif tag == 'RP':
+                hidden = self.lstmCellrp(input, hidden)
+            elif tag == 'FW':
+                hidden = self.lstmCellfw(input, hidden)
+            elif tag == 'DT':
+                hidden = self.lstmCelldt(input, hidden)
+            elif tag == 'UH':
+                hidden = self.lstmCelluh(input, hidden)
+            elif tag == 'TO':
+                hidden = self.lstmCellto(input, hidden)
+            elif tag == 'PRP':
+                hidden = self.lstmCellprp(input, hidden)
+            elif tag == 'PRP$':
+                hidden = self.lstmCellprpdolar(input, hidden)
+            elif tag == '$':
+                hidden = self.lstmCelldolar(input, hidden)
+            elif tag == 'WP':
+                hidden = self.lstmCellwp(input, hidden)
+            elif tag == 'WP$':
+                hidden = self.lstmCellwpdolar(input, hidden)
+            elif tag == 'WDT':
+                hidden = self.lstmCellwdt(input, hidden)
+            elif tag == 'WRB':
+                hidden = self.lstmCellwrb(input, hidden)
             else:
-                hidden = self.lstmCellOtherOther(input, hidden)
+                hidden = self.lstmCellother(input, hidden)
 
-        # lstm_out, hidden = self.lstm(embeds, hidden)
+                # lstm_out, hidden = self.lstm(embeds, hidden)
         lstm_out = hidden[0].contiguous().view(-1, self.hidden_dim)
 
         out = self.dropout(lstm_out)
@@ -339,11 +624,46 @@ class SpamClassifier(nn.Module):
 
 VOCAB_SIZE = len(tokenizer.word_index) + 1
 
+model_selector = 0
 
-model = SpamClassifier(VOCAB_SIZE, OUTPUT_SIZE, EMBEDDING_SIZE, HIDDEN_DIM, N_LAYERS)
+
+def get_model(selector):
+    if selector == 0:
+        return SpamClassifierSingleLstmCell(
+            vocab_size=VOCAB_SIZE,
+            output_size=OUTPUT_SIZE,
+            embedding_matrix=embedding_matrix,
+            embedding_size=EMBEDDING_SIZE,
+            hidden_dim=HIDDEN_DIM,
+            device=device,
+            drop_prob=0.2
+        )
+    elif selector == 1:
+        return SpamClassifierLstmCellPos(
+            vocab_size=VOCAB_SIZE,
+            output_size=OUTPUT_SIZE,
+            embedding_matrix=embedding_matrix,
+            embedding_size=EMBEDDING_SIZE,
+            hidden_dim=HIDDEN_DIM,
+            device=device,
+            index_mapper=IndexMapper(tokenizer),
+            drop_prob=0.2
+        )
+    else:
+        return SpamClassifierSingleLstmCell(
+            vocab_size=VOCAB_SIZE,
+            output_size=OUTPUT_SIZE,
+            embedding_matrix=embedding_matrix,
+            embedding_size=EMBEDDING_SIZE,
+            hidden_dim=HIDDEN_DIM,
+            device=device,
+            drop_prob=0.2
+        )
+
+
+model = get_model(model_selector)
 model.to(device)
 print(model)
-
 
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -352,7 +672,6 @@ counter = 0
 print_every = 1000
 clip = 5
 valid_loss_min = np.Inf
-
 
 ######################## TRAINING ###########################
 # Set model to train configuration
@@ -406,8 +725,6 @@ for i in range(EPOCHS):
                                                                                                 np.mean(val_losses)))
                 valid_loss_min = np.mean(val_losses)
 
-
-
 ######################## TESTING ###########################
 # Loading the best model
 model.load_state_dict(torch.load('./state/state_dict.pt'))
@@ -428,9 +745,8 @@ for inputs, labels in test_loader:
     num_correct += np.sum(correct)
 
 print("Test loss: {:.3f}".format(np.mean(test_losses)))
-test_acc = num_correct/len(test_loader.dataset)
-print("Test accuracy: {:.3f}%".format(test_acc*100))
-
+test_acc = num_correct / len(test_loader.dataset)
+print("Test accuracy: {:.3f}%".format(test_acc * 100))
 
 
 def get_predictions(text):
@@ -441,12 +757,12 @@ def get_predictions(text):
     # pad the sequence
     sequence = pad_sequences(sequence, maxlen=SEQUENCE_LENGTH)
     for inputs in sequence:
-        inputs =  np.reshape(inputs, (1,len(inputs)))
+        inputs = np.reshape(inputs, (1, len(inputs)))
         inputs = torch.from_numpy(inputs)
         h = tuple([each.data for each in h])
         output, h = model(inputs, h)
     pred = torch.round(output.squeeze())  # Rounds the output to 0/1
-    if(pred==0):
+    if (pred == 0):
         return "ham"
     else:
         return "spam"
