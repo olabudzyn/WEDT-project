@@ -100,14 +100,14 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, r
 split_frac = 0.5  # 50% validation, 50% test
 
 # wordcloud for insult comments
-plt.subplot(325)
-subset = XSpamText
-text = ["1", "2"]
-wc = WordCloud(background_color="black", max_words=2000)
-wc.generate(" ".join("f"))
-plt.axis("off")
-plt.title("Częste słowa w obraźliwych komentarzach", fontsize=20)
-plt.imshow(wc.recolor(colormap='Paired_r', random_state=244), alpha=0.98)
+#plt.subplot(325)
+#subset = XSpamText
+#text = ["1", "2"]
+#wc = WordCloud(background_color="black", max_words=2000)
+#wc.generate(" ".join("f"))
+#plt.axis("off")
+#plt.title("Częste słowa w obraźliwych komentarzach", fontsize=20)
+#plt.imshow(wc.recolor(colormap='Paired_r', random_state=244), alpha=0.98)
 
 split_frac = 0.5  # 50% validation, 50% test
 split_id = int(split_frac * len(X_test))
