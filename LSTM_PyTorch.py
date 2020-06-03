@@ -11,7 +11,7 @@ from keras.preprocessing.text import Tokenizer
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
 from sklearn.model_selection import train_test_split
-
+import matplotlib.pyplot as plt
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
 EMBEDDING_SIZE = 100   # Using 100-Dimensional GloVe embedding vectors
@@ -357,6 +357,8 @@ valid_loss_min = np.Inf
 ######################## TRAINING ###########################
 # Set model to train configuration
 model.train()
+val_losses_vector = []
+train_losses_vector = []
 
 for i in range(EPOCHS):
     h = model.init_hidden(BATCH_SIZE)
@@ -394,6 +396,10 @@ for i in range(EPOCHS):
                   "Step: {}...".format(counter),
                   "Loss: {:.6f}...".format(loss.item()),
                   "Val Loss: {:.6f}".format(np.mean(val_losses)))
+
+            val_losses_vector.append(np.mean(val_losses))
+            train_losses_vector.append(loss.item())
+
             if np.mean(val_losses) <= valid_loss_min:
                 torch.save(model.state_dict(), './state/state_dict.pt')
                 print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(valid_loss_min,
@@ -445,6 +451,16 @@ def get_predictions(text):
     else:
         return "spam"
 
+# Plot training and validation loss
+val_losses_iter = np.arange(len(val_losses_vector))
+train_losses_iter = np.arange(len(train_losses_vector))
+
+plt.figure()
+plt.plot(train_losses_iter, train_losses_vector, 'r', label='Training loss', )
+plt.plot(val_losses_iter, val_losses_vector, 'b', label='Validation loss')
+plt.legend()
+plt.xlabel('Every 1000 samples'), plt.ylabel('Values')
+plt.show()
 
 text = "Congratulations! you have won 100,000$ this week, click here to claim fast"
 print(get_predictions(text))
