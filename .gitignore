@@ -3,3 +3,5 @@ results
 data/glove*
 .idea/*
 venv
+state
+__pycache__/
