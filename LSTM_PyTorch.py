@@ -2,20 +2,15 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import time
-import nltk
 import numpy as np
 import tqdm
-from keras.callbacks import ModelCheckpoint
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
-from nltk.corpus import stopwords
-from nltk.tokenize import sent_tokenize
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from SpamClassifierLstmCellPos import SpamClassifierLstmCellPos
 from SpamClassifierSingleLstmCell import SpamClassifierSingleLstmCell
 from IndexMapper import IndexMapper
-from Tagger import FullTagger
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
 EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
@@ -49,71 +44,6 @@ X, y = load_data()
 X = X[:num]
 y = y[:num]
 
-stop_words = set(stopwords.words('english'))
-
-dataWithoutStopWords = []
-# filter sentences stop words
-for j in range(0, len(X)):
-    tokenized = sent_tokenize(X[j])
-    for i in tokenized:
-        wordsList = nltk.word_tokenize(i)
-        wordsList = [w for w in wordsList if not w in stop_words]
-        sentence = ' '.join(wordsList)
-        dataWithoutStopWords.append(sentence)
-
-# Text tokenization
-# vectorizing text, turning each text into sequence of integers
-# tokenizer1 = Tokenizer(lower=False)
-# tokenizer1.fit_on_texts(dataWithoutStopWords)
-# convert to sequence of integers
-
-# tokenizedSentences = tokenizer1.texts_to_sequences(dataWithoutStopWords)
-# X = tokenizer1.texts_to_sequences(dataWithoutStopWords)
-
-taggedWordsList = []
-
-for j in range(0, len(dataWithoutStopWords)):
-    tokenized = sent_tokenize(dataWithoutStopWords[j])
-    for i in tokenized:
-        # Word tokenizers is used to find the words
-        # and punctuation in a string
-        wordsList = nltk.word_tokenize(i)
-        #  Using a Tagger. Which is part-of-speech
-        # tagger or POS-tagger.
-        tagged = nltk.pos_tag(wordsList)
-        taggedWordsList.append(tagged)
-
-taggedWordsList2 = []
-
-for j in range(0, 10):
-    tokenized = sent_tokenize(X[j])
-    for i in tokenized:
-        # Word tokenizers is used to find the words
-        # and punctuation in a string
-        wordsList = nltk.word_tokenize(i)
-        #  Using a Tagger. Which is part-of-speech
-        # tagger or POS-tagger.
-        tagged = nltk.pos_tag(wordsList)
-        taggedWordsList2.append(tagged)
-
-taggedWordsList3 = []
-
-for j in range(0, 10):
-    tokenized = sent_tokenize(X[j])
-    for i in tokenized:
-        # Word tokenizers is used to find the words
-        # and punctuation in a string
-        wordsList = nltk.word_tokenize(i)
-
-        # removing stop words from wordList
-        wordsList = [w for w in wordsList if not w in stop_words]
-
-        #  Using a Tagger. Which is part-of-speech
-        # tagger or POS-tagger.
-        tagged = nltk.pos_tag(wordsList)
-
-        taggedWordsList3.append(tagged)
-
 # Text tokenization
 # vectorizing text, turning each text into sequence of integers
 tokenizer = Tokenizer(lower=False)
@@ -130,12 +60,8 @@ X = pad_sequences(X, maxlen=SEQUENCE_LENGTH)
 y = [label2int[label] for label in y]
 y = np.asarray(y, dtype=np.float32)
 
-import json
-
 # split and shuffle
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=7)
-
-dictionary = json.loads(tokenizer.get_config()['index_word'])
 
 split_frac = 0.5  # 50% validation, 50% test
 split_id = int(split_frac * len(X_test))
@@ -154,7 +80,7 @@ val_loader = DataLoader(val_data, shuffle=True, batch_size=BATCH_SIZE)
 test_loader = DataLoader(test_data, shuffle=True, batch_size=BATCH_SIZE)
 
 
-def get_embedding_vectors(tokenizer, dim=100):
+def get_embedding_vectors(input_tokenizer, dim=100):
     embedding_index = {}
     with open(f"data/glove.6B.{dim}d.txt", encoding='utf8') as f:
         for line in tqdm.tqdm(f, "Reading GloVe"):
@@ -163,23 +89,18 @@ def get_embedding_vectors(tokenizer, dim=100):
             vectors = np.asarray(values[1:], dtype='float32')
             embedding_index[word] = vectors
 
-    word_index = tokenizer.word_index
-    embedding_matrix = np.zeros((len(word_index) + 1, dim))
+    word_index = input_tokenizer.word_index
+    new_embedding_matrix = np.zeros((len(word_index) + 1, dim))
     for word, i in word_index.items():
         embedding_vector = embedding_index.get(word)
         if embedding_vector is not None:
             # words not found will be 0s
-            embedding_matrix[i] = embedding_vector
+            new_embedding_matrix[i] = embedding_vector
 
-    return embedding_matrix
+    return new_embedding_matrix
 
 
 embedding_matrix = get_embedding_vectors(tokenizer)
-
-# initialize our ModelCheckpoint and TensorBoard callbacks
-# model checkpoint for saving best weights
-model_checkpoint = ModelCheckpoint("results/spam_classifier_{val_loss:.2f}", save_best_only=True,
-                                   verbose=1)
 
 # torch.cuda.is_available() checks and returns a Boolean True if a GPU is available, else it'll return False
 is_cuda = torch.cuda.is_available()
@@ -192,434 +113,10 @@ else:
     device = torch.device("cpu")
     print("GPU not available, CPU used")
 
-    dataiter = iter(train_loader)
-    sample_x, sample_y = dataiter.next()
+    data_iter = iter(train_loader)
+    sample_x, sample_y = data_iter.next()
 
     print(sample_x.shape, sample_y.shape)
-
-
-def indexToWord(index):
-    if index == 0:
-        return "."
-    word = dictionary[str(index)]
-    return word
-
-
-from nltk.data import load
-
-possibleTagList = load('help/tagsets/upenn_tagset.pickle').keys()
-
-
-# self.lstmCellvbn = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellvbz = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellvbg = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellvbp = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellvbd = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellvmd = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellnn = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellnnps = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellnnp = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellnns = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelljjs = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelljjr = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelljj = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellrb = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellrbr = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellrbs = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellEmpty = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellCd = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellIn = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellPdt = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellcc = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellex = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellpos = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellrp = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellfw = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelldt = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelluh = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellto = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellprp = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellprpdolar = nn.LSTMCell(100, hidden_dim)
-# self.lstmCelldolar = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellwp = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellwpdolar = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellwdt = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellwrb = nn.LSTMCell(100, hidden_dim)
-# self.lstmCellother = nn.LSTMCell(100, hidden_dim)
-
-def mapTag(tag):
-    if tag in ['VBN', 'VBZ', 'VBG', 'VBP', 'VBD', 'MD']:
-        return 'V'
-    elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
-        return 'N'
-    elif tag in ['JJS', 'JJR', 'JJ']:
-        return 'A'
-    elif tag in ['RB', 'RBR', 'RBS']:
-        return 'ADV'
-    elif tag in ['.']:
-        return 'EMPTY'
-    elif tag in ['CD']:
-        return 'CD'
-    elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT',
-                 'WRB']:
-        return 'OTHER'
-    else:
-        return 'OTHER_OTHER'
-
-
-# def mapTag(tag):
-#     if tag in ['VBN','VBZ','VBG','VBP','VBD','MD']:
-#         return 'V'
-#     elif tag in ['NN', 'NNPS', 'NNP', 'NNS']:
-#         return 'N'
-#     elif tag in ['JJS', 'JJR', 'JJ']:
-#         return 'A'
-#     elif tag in ['RB', 'RBR', 'RBS']:
-#         return 'ADV'
-#     elif tag in ['.']:
-#         return 'EMPTY'
-#     elif tag in ['CD']:
-#         return 'CD'
-#     elif tag in ['IN', 'PDT', 'CC', 'EX', 'POS', 'RP', 'FW', 'DT', 'UH', 'TO', 'PRP', 'PRP$', '$', 'WP', 'WP$', 'WDT', 'WRB']:
-#         return 'OTHER'
-#     else:
-#         return 'OTHER_OTHER'
-
-def mapTag(tag):
-    if tag == 'VBN':
-        return 'VBN'
-    elif tag == 'VBZ':
-        return 'VBZ'
-    elif tag == 'VBG':
-        return 'VBG'
-    elif tag == 'VBP':
-        return 'VBP'
-    elif tag == 'VBD':
-        return 'VBD'
-    elif tag == 'MD':
-        return 'MD'
-    elif tag == 'NN':
-        return 'NN'
-    elif tag == 'NNPS':
-        return 'NNPS'
-    elif tag == 'NNP':
-        return 'NNP'
-    elif tag == 'NNS':
-        return 'NNS'
-    elif tag == 'JJS':
-        return 'JJS'
-    elif tag == 'JJR':
-        return 'JJR'
-    elif tag == 'JJ':
-        return 'JJ'
-    elif tag == 'RB':
-        return 'RB'
-    elif tag == 'RBR':
-        return 'RB'
-    elif tag == 'RBS':
-        return 'RB'
-    elif tag == '.':
-        return 'EMPTY'
-    elif tag == 'CD':
-        return 'CD'
-    elif tag == 'IN':
-        return 'IN'
-    elif tag == 'PDT':
-        return 'PDT'
-    elif tag == 'CC':
-        return 'CC'
-    elif tag == 'EX':
-        return 'EX'
-    elif tag == 'POS':
-        return 'POS'
-    elif tag == 'RP':
-        return 'RP'
-    elif tag == 'FW':
-        return 'FW'
-    elif tag == 'DT':
-        return 'DT'
-    elif tag == 'UH':
-        return 'UH'
-    elif tag == 'TO':
-        return 'TO'
-    elif tag == 'PRP':
-        return 'PRP'
-    elif tag == 'PRP$':
-        return 'PRP$'
-    elif tag == '$':
-        return 'DOLAR'
-    elif tag == 'WP':
-        return 'WP'
-    elif tag == 'WP$':
-        return 'WP$'
-    elif tag == 'WDT':
-        return 'WDT'
-    elif tag == 'WRB':
-        return 'WRB'
-    else:
-        return 'OTHER'
-
-
-# if tag == 'VBN':
-#     hidden = self.lstmCellvbn(input, hidden)
-# elif tag == 'VBZ':
-#     hidden = self.lstmCellvbz(input, hidden)
-# elif tag == 'VBG':
-#     hidden = self.lstmCellvbn(input, hidden)
-# elif tag == 'VBP':
-#     hidden = self.lstmCellvbp(input, hidden)
-# elif tag == 'VBD':
-#     hidden = self.lstmCellvbd(input, hidden)
-# elif tag == 'MD':
-#     hidden = self.lstmCellmd(input, hidden)
-# elif tag == 'NN':
-#     hidden = self.lstmCellnn(input, hidden)
-# elif tag == 'NNPS':
-#     hidden = self.lstmCellnnps(input, hidden)
-# elif tag == 'NNP':
-#     hidden = self.lstmCellnnp(input, hidden)
-# elif tag == 'NNS':
-#     hidden = self.lstmCellnns(input, hidden)
-# elif tag == 'JJS':
-#     hidden = self.lstmCelljjs(input, hidden)
-# elif tag == 'JJR':
-#     hidden = self.lstmCelljjr(input, hidden)
-# elif tag == 'JJ':
-#     hidden = self.lstmCelljj(input, hidden)
-# elif tag == 'RB':
-#     hidden = self.lstmCellrb(input, hidden)
-# elif tag == 'RBR':
-#     hidden = self.lstmCellrbr(input, hidden)
-# elif tag == 'RBS':
-#     hidden = self.lstmCellrbs(input, hidden)
-# elif tag == '.':
-#     hidden = self.lstmCellempty(input, hidden)
-# elif tag == 'CD':
-#     hidden = self.lstmCellcd(input, hidden)
-# elif tag == 'IN':
-#     hidden = self.lstmCellin(input, hidden)
-# elif tag == 'PDT':
-#     hidden = self.lstmCellpdt(input, hidden)
-# elif tag == 'CC':
-#     hidden = self.lstmCellcc(input, hidden)
-# elif tag == 'EX':
-#     hidden = self.lstmCellex(input, hidden)
-# elif tag == 'POS':
-#     hidden = self.lstmCellpos(input, hidden)
-# elif tag == 'RP':
-#     hidden = self.lstmCellrp(input, hidden)
-# elif tag == 'FW':
-#     hidden = self.lstmCellfw(input, hidden)
-# elif tag == 'DT':
-#     hidden = self.lstmCelldt(input, hidden)
-# elif tag == 'UH':
-#     hidden = self.lstmCelluh(input, hidden)
-# elif tag == 'TO':
-#     hidden = self.lstmCellto(input, hidden)
-# elif tag == 'PRP':
-#     hidden = self.lstmCellprp(input, hidden)
-# elif tag == 'PRP$':
-#     hidden = self.lstmCellprpdolar(input, hidden)
-# elif tag == '$':
-#     hidden = self.lstmCelldolar(input, hidden)
-# elif tag == 'WP':
-#     hidden = self.lstmCellwp(input, hidden)
-# elif tag == 'WP$':
-#     hidden = self.lstmCellwpdolar(input, hidden)
-# elif tag == 'WDT':
-#     hidden = self.lstmCellwdt(input, hidden)
-# elif tag == 'WRB':
-#     hidden = self.lstmCellwrb(input, hidden)
-# else
-#     hidden = self.lstmCellother
-
-newTagDictionary = list(dict.fromkeys(map(mapTag, possibleTagList)))
-
-tagCounter = dict()
-for tag in newTagDictionary:
-    tagCounter[tag] = 0
-
-
-class SpamClassifier(nn.Module):
-    def __init__(self, vocab_size, output_size, embedding_dim, hidden_dim, n_layers, drop_prob=0.5):
-        super(SpamClassifier, self).__init__()
-        self.output_size = output_size
-        self.n_layers = n_layers
-        self.hidden_dim = 100
-
-        self.embedding = nn.Embedding(vocab_size, EMBEDDING_SIZE)
-        self.embedding.weight = nn.Parameter(torch.tensor(embedding_matrix, dtype=torch.float32))
-        self.embedding.weight.requires_grad = False
-
-        self.lstmCellOne = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellvbn = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellvbz = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellvbg = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellvbp = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellvbd = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellmd = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellnn = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellnnps = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellnnp = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellnns = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelljjs = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelljjr = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelljj = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellrb = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellrbr = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellrbs = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellEMPTY = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellcd = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellin = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellpdt = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellcc = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellex = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellpos = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellrp = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellfw = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelldt = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelluh = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellto = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellprp = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellprpdolar = nn.LSTMCell(100, hidden_dim)
-        self.lstmCelldolar = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellwp = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellwpdolar = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellwdt = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellwrb = nn.LSTMCell(100, hidden_dim)
-        self.lstmCellother = nn.LSTMCell(100, hidden_dim)
-        self.lstmCells = dict()
-        for tag in newTagDictionary:
-            newlstmCell = nn.LSTMCell(100, hidden_dim)
-            self.lstmCells[tag] = newlstmCell
-
-        self.lstm = nn.LSTM(EMBEDDING_SIZE, hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
-
-        # self.lstmUnits = dict()
-        # for tag in possibleTagList:
-        #     newlstm = nn.LSTM(EMBEDDING_SIZE, hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
-        #     self.lstmUnits[tag] = newlstm
-
-        self.dropout = nn.Dropout(0.2)
-        # dense layer
-        self.fc = nn.Linear(hidden_dim, output_size)
-        # activation function
-        self.softmax = nn.Sigmoid()
-
-    def forward(self, x, hidden):
-        batch_size = x.size(0)
-        x = x.long()
-
-        listOfWords = []
-        indexList = x.tolist()[0]
-        for i in range(0, len(indexList)):
-            index = indexList[i]
-            word = indexToWord(index)
-            listOfWords.append(word)
-
-        listOfPOSTags = nltk.pos_tag(listOfWords)
-        listOfTags = []
-        for i in range(0, len(listOfPOSTags)):
-            tuple = listOfPOSTags[i]
-            tag = mapTag(tuple[1])
-            listOfTags.append(tag)
-
-        embeds = self.embedding(x)
-
-        for i in range(0, 100):
-            tag = listOfTags[i]
-            tagCounter[tag] += 1
-            input = embeds[0][i].view(1, 100)
-
-            if tag == 'VBN':
-                hidden = self.lstmCellvbn(input, hidden)
-            elif tag == 'VBZ':
-                hidden = self.lstmCellvbz(input, hidden)
-            elif tag == 'VBG':
-                hidden = self.lstmCellvbn(input, hidden)
-            elif tag == 'VBP':
-                hidden = self.lstmCellvbp(input, hidden)
-            elif tag == 'VBD':
-                hidden = self.lstmCellvbd(input, hidden)
-            elif tag == 'MD':
-                hidden = self.lstmCellmd(input, hidden)
-            elif tag == 'NN':
-                hidden = self.lstmCellnn(input, hidden)
-            elif tag == 'NNPS':
-                hidden = self.lstmCellnnps(input, hidden)
-            elif tag == 'NNP':
-                hidden = self.lstmCellnnp(input, hidden)
-            elif tag == 'NNS':
-                hidden = self.lstmCellnns(input, hidden)
-            elif tag == 'JJS':
-                hidden = self.lstmCelljjs(input, hidden)
-            elif tag == 'JJR':
-                hidden = self.lstmCelljjr(input, hidden)
-            elif tag == 'JJ':
-                hidden = self.lstmCelljj(input, hidden)
-            elif tag == 'RB':
-                hidden = self.lstmCellrb(input, hidden)
-            elif tag == 'RBR':
-                hidden = self.lstmCellrbr(input, hidden)
-            elif tag == 'RBS':
-                hidden = self.lstmCellrbs(input, hidden)
-            elif tag == '.':
-                hidden = self.lstmCellEMPTY(input, hidden)
-            elif tag == 'CD':
-                hidden = self.lstmCellcd(input, hidden)
-            elif tag == 'IN':
-                hidden = self.lstmCellin(input, hidden)
-            elif tag == 'PDT':
-                hidden = self.lstmCellpdt(input, hidden)
-            elif tag == 'CC':
-                hidden = self.lstmCellcc(input, hidden)
-            elif tag == 'EX':
-                hidden = self.lstmCellex(input, hidden)
-            elif tag == 'POS':
-                hidden = self.lstmCellpos(input, hidden)
-            elif tag == 'RP':
-                hidden = self.lstmCellrp(input, hidden)
-            elif tag == 'FW':
-                hidden = self.lstmCellfw(input, hidden)
-            elif tag == 'DT':
-                hidden = self.lstmCelldt(input, hidden)
-            elif tag == 'UH':
-                hidden = self.lstmCelluh(input, hidden)
-            elif tag == 'TO':
-                hidden = self.lstmCellto(input, hidden)
-            elif tag == 'PRP':
-                hidden = self.lstmCellprp(input, hidden)
-            elif tag == 'PRP$':
-                hidden = self.lstmCellprpdolar(input, hidden)
-            elif tag == '$':
-                hidden = self.lstmCelldolar(input, hidden)
-            elif tag == 'WP':
-                hidden = self.lstmCellwp(input, hidden)
-            elif tag == 'WP$':
-                hidden = self.lstmCellwpdolar(input, hidden)
-            elif tag == 'WDT':
-                hidden = self.lstmCellwdt(input, hidden)
-            elif tag == 'WRB':
-                hidden = self.lstmCellwrb(input, hidden)
-            else:
-                hidden = self.lstmCellother(input, hidden)
-
-                # lstm_out, hidden = self.lstm(embeds, hidden)
-        lstm_out = hidden[0].contiguous().view(-1, self.hidden_dim)
-
-        out = self.dropout(lstm_out)
-        out = self.fc(out)
-        out = self.softmax(out)
-
-        out = out.view(batch_size, -1)
-        out = out[:, -1]
-        return out, hidden
-
-    def init_hidden(self, batch_size):
-        weight = next(self.parameters()).data
-        hidden = (weight.new(1, self.hidden_dim).zero_().to(device),
-                  weight.new(1, self.hidden_dim).zero_().to(device))
-        return hidden
 
 
 VOCAB_SIZE = len(tokenizer.word_index) + 1
