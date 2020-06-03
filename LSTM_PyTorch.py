@@ -1,44 +1,25 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-import time
-from sklearn import metrics, linear_model
-from sklearn.model_selection import cross_validate
-from sklearn.metrics import classification_report
-import nltk
 import numpy as np
 import tqdm
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 from SpamClassifierLstmLayer import SpamClassifierLstmLayer
-from SpamClassifierLstmPosFull import SpamClassifierLstmPosFull
+from SpamClassifierLstmPosPenn import SpamClassifierLstmPosPenn
 from SpamClassifierLstmPosUniversal import SpamClassifierLstmPosUniversal
 from SpamClassifierSingleLstmCell import SpamClassifierSingleLstmCell
+from Stats import Stats
 from IndexMapper import IndexMapper
 from Analysis import Analysis
-from UniversalTagger import UniversalTagger
-from UniversalTagger import UniversalTagger
-import json
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import plot_precision_recall_curve
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import recall_score
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import precision_score
-from sklearn.metrics import f1_score
-from sklearn.metrics import accuracy_score
 
 SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample)
 EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
 TEST_SIZE = 0.20  # ratio of testing set
 OUTPUT_SIZE = 1
-# N_ITERS = 5
-# EPOCHS = int(N_ITERS / (len(X_train) / BATCH_SIZE))
-EPOCHS = 2
+EPOCHS = 3
 HIDDEN_DIM = 100
-N_LAYERS = 2
 LEARNING_RATE = 0.005
 
 # to convert labels to integers and vice-versa
@@ -57,7 +38,7 @@ def load_data():
 
 
 # load the data
-num = 50
+num = 500
 X, y = load_data()
 X = X[:num]
 y = y[:num]
@@ -68,7 +49,7 @@ tokenizer = Tokenizer(lower=False)
 tokenizer.fit_on_texts(X)
 # convert to sequence of integers
 X = tokenizer.texts_to_sequences(X)
-# convertomg to numpy arrays
+# convert to numpy arrays
 X = np.array(X)
 y = np.array(y)
 
@@ -88,7 +69,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, r
 
 split_frac = 0.5  # 50% validation, 50% test
 
-split_frac = 0.5  # 50% validation, 50% test
 split_id = int(split_frac * len(X_test))
 X_val, X_test = X_test[:split_id], X_test[split_id:]
 y_val, y_test = y_test[:split_id], y_test[split_id:]
@@ -98,7 +78,7 @@ val_data = TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val))
 test_data = TensorDataset(torch.from_numpy(X_test), torch.from_numpy(y_test))
 
 BATCH_SIZE = int(1)  # it must be a divisor X_train and X_val
-# BATCH_SIZE = int(len(X_val)/1)   # it must be a divisor X_train and X_val
+# BATCH_SIZE = int(len(X_val) / 1)  # it must be a divisor X_train and X_val
 
 train_loader = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
 val_loader = DataLoader(val_data, shuffle=True, batch_size=BATCH_SIZE)
@@ -145,7 +125,8 @@ else:
 
 VOCAB_SIZE = len(tokenizer.word_index) + 1
 
-model_selector = 3
+model_selector = 0
+drop_prob = 0.2
 
 
 def get_model(selector):
@@ -158,7 +139,7 @@ def get_model(selector):
             embedding_size=EMBEDDING_SIZE,
             hidden_dim=HIDDEN_DIM,
             device=device,
-            drop_prob=0.2
+            drop_prob=drop_prob
         )
     elif selector == 1:
         return SpamClassifierSingleLstmCell(
@@ -168,10 +149,10 @@ def get_model(selector):
             embedding_size=EMBEDDING_SIZE,
             hidden_dim=HIDDEN_DIM,
             device=device,
-            drop_prob=0.2
+            drop_prob=drop_prob
         )
     elif selector == 2:
-        return SpamClassifierLstmPosFull(
+        return SpamClassifierLstmPosPenn(
             vocab_size=VOCAB_SIZE,
             output_size=OUTPUT_SIZE,
             embedding_matrix=embedding_matrix,
@@ -179,7 +160,7 @@ def get_model(selector):
             hidden_dim=HIDDEN_DIM,
             device=device,
             index_mapper=IndexMapper(tokenizer),
-            drop_prob=0.2
+            drop_prob=drop_prob
         )
     elif selector == 3:
         return SpamClassifierLstmPosUniversal(
@@ -190,7 +171,7 @@ def get_model(selector):
             hidden_dim=HIDDEN_DIM,
             device=device,
             index_mapper=IndexMapper(tokenizer),
-            drop_prob=0.2
+            drop_prob=drop_prob
         )
     else:
         return SpamClassifierSingleLstmCell(
@@ -200,151 +181,189 @@ def get_model(selector):
             embedding_size=EMBEDDING_SIZE,
             hidden_dim=HIDDEN_DIM,
             device=device,
-            drop_prob=0.2
+            drop_prob=drop_prob
         )
 
 
-model = get_model(model_selector)
-model.to(device)
-print(model)
-
-criterion = nn.BCELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-print_every = len(X_val)
-clip = 5
-valid_loss_min = np.Inf
-
-######################## TRAINING ###########################
-# Set model to train configuration
-model.train()
-
-title = "Values of losses of"
-
-for i in range(EPOCHS):
-    val_losses_vector = []
-    train_losses_vector = []
-    titleOfEpoch = " Epoch: {}/{}".format(i + 1, EPOCHS)
-    plotTitle = title + titleOfEpoch
-    counter = 0
-    h = model.init_hidden(BATCH_SIZE)
-    avg_loss = 0
-
-    for inputs, labels in train_loader:
-        counter += 1
-        h = tuple([e.data for e in h])
-        inputs, labels = inputs.to(device), labels.to(device)
-        model.zero_grad()
-        output, h = model(inputs, h)
-        loss = criterion(output.squeeze(), labels.float())
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), clip)
-        optimizer.step()
-        avg_loss += loss.item() / len(train_loader)
-
-        # For every (print_every) checking checking output of the model against the validation dataset
-        # and saving the model if it performed better than the previous time
-        if counter % print_every == 0:
-            val_h = model.init_hidden(BATCH_SIZE)
-            val_losses = []
-            # Set model to validation configuration - Doesn't get trained here
-            model.eval()
-            for inp, lab in val_loader:
-                val_h = tuple([each.data for each in val_h])
-                inp, lab = inp.to(device), lab.to(device)
-                out, val_h = model(inp, val_h)
-                val_loss = criterion(out.squeeze(), lab.float())
-                val_losses.append(val_loss.item())
-
-            model.train()
-            print("Epoch: {}/{}...".format(i + 1, EPOCHS),
-                  "Step: {}...".format(counter),
-                  "Loss: {:.6f}...".format(loss.item()),
-                  "Val Loss: {:.6f}".format(np.mean(val_losses)))
-
-            val_losses_vector.append(np.mean(val_losses))
-            train_losses_vector.append(loss.item())
-
-            if np.mean(val_losses) <= valid_loss_min:
-                torch.save(model.state_dict(), './state/state_dict.pt')
-                print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(valid_loss_min,
-                                                                                                np.mean(val_losses)))
-                valid_loss_min = np.mean(val_losses)
-
-    analysis.losses_plotting(train_losses_vector, val_losses_vector, plotTitle, print_every)
-
-######################## TESTING ###########################
-# Loading the best model
-model.load_state_dict(torch.load('./state/state_dict.pt'))
-
-test_losses = []
-num_correct = 0
-h = model.init_hidden(BATCH_SIZE)
-model.eval()
-test_labels_vector = []
-test_pred_vector = []
-
-for inputs, labels in test_loader:
-    h = tuple([each.data for each in h])
-    test_labels_vector.append(labels.item())
-    inputs, labels = inputs.to(device), labels.to(device)
-    output, h = model(inputs, h)
-    test_loss = criterion(output.squeeze(), labels.float())
-    test_losses.append(test_loss.item())
-    pred = torch.round(output.squeeze())  # Rounds the output to 0/1
-    test_pred_vector.append(pred.item())
-    correct_tensor = pred.eq(labels.float().view_as(pred))
-    correct = np.squeeze(correct_tensor.cpu().numpy())
-    num_correct += np.sum(correct)
-
-print("Test loss: {:.3f}".format(np.mean(test_losses)))
-test_acc = num_correct / len(test_loader.dataset)
-print("Test accuracy: {:.3f}%".format(test_acc * 100))
-test_acc = num_correct / len(test_loader.dataset)
-print("Test accuracy: {:.3f}%".format(test_acc * 100))
-
-test_labels_vector = np.array(test_labels_vector)
-test_pred_vector = np.array(test_pred_vector)
-
-# Calculating confusion matrix
-confusionMatrix = confusion_matrix(test_labels_vector, test_pred_vector)
-recall = recall_score(test_labels_vector, test_pred_vector, average='macro')
-precision = precision_score(test_labels_vector, test_pred_vector, average='macro')
-f1 = f1_score(test_labels_vector, test_pred_vector, average='macro')
-accuracy = accuracy_score(test_labels_vector, test_pred_vector)
-recall1 = recall_score(test_pred_vector, test_labels_vector, average='macro')
-
-print(confusionMatrix)
-print('Average recall score: {0:0.4f}'.format(recall))
-print('Average precision score: {0:0.4f}'.format(precision))
-print('Average f1-recall score: {0:0.4f}'.format(f1))
-
-
-def get_predictions(text):
-    model.load_state_dict(torch.load('./state/state_dict.pt'))
-    model.eval()
-    h = model.init_hidden(1)
-    sequence = tokenizer.texts_to_sequences([text])
-    # pad the sequence
-    sequence = pad_sequences(sequence, maxlen=SEQUENCE_LENGTH)
-    for inputs in sequence:
-        inputs = np.reshape(inputs, (1, len(inputs)))
-        inputs = torch.from_numpy(inputs)
-        h = tuple([each.data for each in h])
-        output, h = model(inputs, h)
-    pred = torch.round(output.squeeze())  # Rounds the output to 0/1
-    if (pred == 0):
-        return "ham"
+def get_title(selector):
+    if selector == 0:
+        return "LSTM Layer"
+    elif selector == 1:
+        return "LSTM Single Cell"
+    elif selector == 2:
+        return 'LSTM POS Penn'
+    elif selector == 3:
+        return 'LSTM POS Universal'
     else:
-        return "spam"
+        return "LSTM Single Cell"
 
 
+cf_matrices = []
+accuracies = []
+recalls = []
+precisions = []
+f1_measures = []
+all_stats = []
 
-text = "Congratulations! you have won 100,000$ this week, click here to claim fast"
-print(get_predictions(text))
+models = np.array([get_model(0), get_model(1), get_model(3)])
+titles = np.array([get_title(0), get_title(1), get_title(3)])
 
-text = "Hi man, I was wondering if we can meet tomorrow."
-print(get_predictions(text))
+for n in range(0, len(models)):
+    title = titles[n]
+    model = models[n]
+    model.to(device)
+    print(model)
 
-text = "Thanks for your subscription to Ringtone UK your mobile will be charged £5/month Please confirm by replying YES or NO. If you reply NO you will not be charged"
-print(get_predictions(text))
+    criterion = nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    print_every = len(X_val)
+    clip = 5
+    valid_loss_min = np.Inf
+
+    # =================TRAINING ===========================
+    # Set model to train configuration
+    model.train()
+    for i in range(EPOCHS):
+        val_losses_vector = []
+        train_losses_vector = []
+        titleOfEpoch = " Epoch: {}/{}".format(i + 1, EPOCHS)
+        plotTitle = title + titleOfEpoch
+        counter = 0
+        h = model.init_hidden(BATCH_SIZE)
+        avg_loss = 0
+
+        for inputs, labels in train_loader:
+            counter += 1
+            h = tuple([e.data for e in h])
+            inputs, labels = inputs.to(device), labels.to(device)
+            model.zero_grad()
+            output, h = model(inputs, h)
+            loss = criterion(output.squeeze(), labels.float())
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), clip)
+            optimizer.step()
+            avg_loss += loss.item() / len(train_loader)
+
+            # For every (print_every) checking checking output of the model against the validation dataset
+            # and saving the model if it performed better than the previous time
+            if counter % print_every == 0:
+                val_h = model.init_hidden(BATCH_SIZE)
+                val_losses = []
+                # Set model to validation configuration - Doesn't get trained here
+                model.eval()
+                for inp, lab in val_loader:
+                    val_h = tuple([each.data for each in val_h])
+                    inp, lab = inp.to(device), lab.to(device)
+                    out, val_h = model(inp, val_h)
+                    val_loss = criterion(out.squeeze(), lab.float())
+                    val_losses.append(val_loss.item())
+
+                model.train()
+                print("Epoch: {}/{}...".format(i + 1, EPOCHS),
+                      "Step: {}...".format(counter),
+                      "Loss: {:.6f}...".format(loss.item()),
+                      "Val Loss: {:.6f}".format(np.mean(val_losses)))
+
+                val_losses_vector.append(np.mean(val_losses))
+                train_losses_vector.append(loss.item())
+
+                if np.mean(val_losses) <= valid_loss_min:
+                    torch.save(model.state_dict(), './state/state_dict.pt')
+                    print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(valid_loss_min,
+                                                                                                    np.mean(
+                                                                                                        val_losses)))
+                    valid_loss_min = np.mean(val_losses)
+
+        analysis.losses_plotting(train_losses_vector, val_losses_vector, plotTitle, print_every)
+
+    # ===================== TESTING ==========================
+    # Loading the best model
+    model.load_state_dict(torch.load('./state/state_dict.pt'))
+
+    test_losses = []
+    num_correct = 0
+    h = model.init_hidden(BATCH_SIZE)
+    model.eval()
+    test_labels_vector = []
+    test_pred_vector = []
+
+    for inputs, labels in test_loader:
+        h = tuple([each.data for each in h])
+        test_labels_vector.append(labels.item())
+        inputs, labels = inputs.to(device), labels.to(device)
+        output, h = model(inputs, h)
+        test_loss = criterion(output.squeeze(), labels.float())
+        test_losses.append(test_loss.item())
+        pred = torch.round(output.squeeze())  # Rounds the output to 0/1
+        test_pred_vector.append(pred.item())
+        correct_tensor = pred.eq(labels.float().view_as(pred))
+        correct = np.squeeze(correct_tensor.cpu().numpy())
+        num_correct += np.sum(correct)
+
+    print("Test loss: {:.3f}".format(np.mean(test_losses)))
+    test_acc = num_correct / len(test_loader.dataset)
+    print("Test accuracy: {:.3f}%".format(test_acc * 100))
+    test_acc = num_correct / len(test_loader.dataset)
+    print("Test accuracy: {:.3f}%".format(test_acc * 100))
+
+    test_labels_vector = np.array(test_labels_vector)
+    test_pred_vector = np.array(test_pred_vector)
+
+    stats = Stats(test_labels_vector, test_pred_vector)
+    all_stats.append(stats)
+
+    cf_matrix = stats.confusion_matrix()
+    cf_matrices.append(cf_matrix)
+
+    accuracy = stats.accuracy()
+    accuracies.append(accuracy)
+
+    recall = stats.recall()
+    recalls.append(recall)
+
+    precision = stats.precision()
+    precisions.append(precision)
+
+    f1 = stats.f_measure()
+    f1_measures.append(f1)
+
+    print(cf_matrix)
+    print('Accuracy: ', accuracy)
+    print('Average recall score: {0:0.4f}'.format(recall))
+    print('Average precision score: {0:0.4f}'.format(precision))
+    print('Average f1-recall score: {0:0.4f}'.format(f1))
+
+
+    def get_predictions(text):
+        model.load_state_dict(torch.load('./state/state_dict.pt'))
+        model.eval()
+        h = model.init_hidden(1)
+        sequence = tokenizer.texts_to_sequences([text])
+        # pad the sequence
+        sequence = pad_sequences(sequence, maxlen=SEQUENCE_LENGTH)
+        for inputs in sequence:
+            inputs = np.reshape(inputs, (1, len(inputs)))
+            inputs = torch.from_numpy(inputs)
+            h = tuple([each.data for each in h])
+            output, h = model(inputs, h)
+        pred = torch.round(output.squeeze())  # Rounds the output to 0/1
+        if (pred == 0):
+            return "ham"
+        else:
+            return "spam"
+
+
+    text = "Congratulations! you have won 100,000$ this week, click here to claim fast"
+    print(get_predictions(text))
+
+    text = "Hi man, I was wondering if we can meet tomorrow."
+    print(get_predictions(text))
+
+    text = "Thanks for your subscription to Ringtone UK your mobile will be charged £5/month Please confirm by replying YES or NO. If you reply NO you will not be charged"
+    print(get_predictions(text))
+    print()
+    print()
+    print()
+    print()
+    print()

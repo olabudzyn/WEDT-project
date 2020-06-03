@@ -3,9 +3,9 @@ import torch.nn as nn
 from FullTagger import FullTagger
 
 
-class SpamClassifierLstmPosFull(nn.Module):
+class SpamClassifierLstmPosPenn(nn.Module):
     def __init__(self, vocab_size, output_size, embedding_matrix, embedding_size, hidden_dim, device, index_mapper, drop_prob):
-        super(SpamClassifierLstmPosFull, self).__init__()
+        super(SpamClassifierLstmPosPenn, self).__init__()
         self.output_size = output_size
         self.hidden_dim = hidden_dim
         self.device = device
