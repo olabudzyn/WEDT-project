@@ -28,7 +28,7 @@ class SpamClassifierSingleLstmCell(nn.Module):
 
         embeds = self.embedding(x)
 
-        for i in range(0, self.embedding_size):
+        for i in range(0, 100):
             cell_input = embeds[0][i].view(batch_size, self.embedding_size)
             hidden = self.lstm_cell(cell_input, hidden)
 

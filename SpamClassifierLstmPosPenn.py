@@ -75,7 +75,7 @@ class SpamClassifierLstmPosPenn(nn.Module):
 
         embeds = self.embedding(x)
 
-        for i in range(0, self.embedding_size):
+        for i in range(0, 100):
             tag = list_of_tags[i]
             self.tag_counter[tag] += 1
             cell_input = embeds[0][i].view(batch_size, self.embedding_size)

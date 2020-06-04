@@ -18,7 +18,7 @@ SEQUENCE_LENGTH = 100  # the length of all sequences (number of words per sample
 EMBEDDING_SIZE = 100  # Using 100-Dimensional GloVe embedding vectors
 TEST_SIZE = 0.20  # ratio of testing set
 OUTPUT_SIZE = 1
-EPOCHS = 1
+EPOCHS = 3
 HIDDEN_DIM = 100
 LEARNING_RATE = 0.005
 
@@ -38,7 +38,7 @@ def load_data():
 
 
 # load the data
-num = 50
+num = 5574
 X, y = load_data()
 X = X[:num]
 y = y[:num]
@@ -105,7 +105,7 @@ def get_embedding_vectors(input_tokenizer, dim=100):
     return new_embedding_matrix
 
 
-embedding_matrix = get_embedding_vectors(tokenizer)
+embedding_matrix = get_embedding_vectors(tokenizer, EMBEDDING_SIZE)
 
 # torch.cuda.is_available() checks and returns a Boolean True if a GPU is available, else it'll return False
 is_cuda = torch.cuda.is_available()
@@ -191,9 +191,9 @@ def get_title(selector):
     elif selector == 1:
         return "LSTM Single Cell"
     elif selector == 2:
-        return 'LSTM POS Penn'
+        return "LSTM POS Penn"
     elif selector == 3:
-        return 'LSTM POS Universal'
+        return "LSTM POS Universal"
     else:
         return "LSTM Single Cell"
 
@@ -205,8 +205,8 @@ precisions = []
 f1_measures = []
 all_stats = []
 
-models = np.array([get_model(0), get_model(1), get_model(3)])
-titles = np.array([get_title(0), get_title(1), get_title(3)])
+models = np.array([get_model(3), get_model(2), get_model(1), get_model(0)])
+titles = np.array([get_title(3), get_title(2), get_title(1), get_title(0)])
 
 for n in range(0, len(models)):
     title = titles[n]
